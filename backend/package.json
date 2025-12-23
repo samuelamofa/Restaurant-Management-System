@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "prestart": "npx prisma generate", // <- generates Prisma client before starting
+    "prestart": "npx prisma generate",
     "start": "node server.js",
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",

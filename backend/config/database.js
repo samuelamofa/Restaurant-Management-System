@@ -4,6 +4,9 @@ const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
 });
 
+// Connection state - must be declared before functions that use it
+let isConnected = false;
+
 // Handle graceful shutdown
 const disconnectDB = async () => {
   try {
@@ -27,8 +30,6 @@ process.on('SIGTERM', async () => {
   await disconnectDB();
   process.exit(0);
 });
-
-let isConnected = false;
 
 // Retry configuration
 const MAX_RETRIES = 5;

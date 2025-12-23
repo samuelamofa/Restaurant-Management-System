@@ -68,6 +68,48 @@ if (Test-Path ".env") {
         exit 1
     }
 } else {
+    # Create .env.production template if it doesn't exist
+    if (-not (Test-Path ".env.production")) {
+        Write-Host "   Creating .env.production template..." -ForegroundColor Cyan
+        $envTemplate = @"
+# Production Environment Variables Template
+# Copy this file to .env and update with your production values
+
+# Server Configuration
+PORT=5000
+NODE_ENV=production
+
+# Database - PostgreSQL (REQUIRED for production)
+# Format: postgresql://user:password@host:port/database?schema=public
+DATABASE_URL="postgresql://user:password@localhost:5432/de_fusion_flame?schema=public"
+
+# JWT Authentication (REQUIRED)
+# Generate a strong random secret: openssl rand -base64 32
+JWT_SECRET=CHANGE_THIS_TO_STRONG_RANDOM_SECRET
+JWT_EXPIRE=7d
+
+# Paystack Configuration (REQUIRED for payments)
+# Use LIVE keys from https://dashboard.paystack.com
+PAYSTACK_SECRET_KEY=sk_live_your_paystack_secret_key
+PAYSTACK_PUBLIC_KEY=pk_live_your_paystack_public_key
+PAYSTACK_WEBHOOK_SECRET=your_webhook_secret_from_paystack
+
+# Frontend URLs (REQUIRED for CORS)
+# Update with your production domain URLs
+FRONTEND_CUSTOMER_URL=https://your-domain.com
+FRONTEND_POS_URL=https://pos.your-domain.com
+FRONTEND_KDS_URL=https://kds.your-domain.com
+FRONTEND_ADMIN_URL=https://admin.your-domain.com
+
+# Restaurant Information (Optional - can be set in admin dashboard)
+RESTAURANT_NAME=De Fusion Flame Kitchen
+RESTAURANT_ADDRESS=Kasoa New Market Road Opposite Saviour Diagnostic Clinic
+RESTAURANT_PHONE=0551796725,0545010103
+"@
+        Set-Content -Path ".env.production" -Value $envTemplate
+        Write-Host "   ✅ Template created" -ForegroundColor Green
+    }
+    
     Copy-Item ".env.production" ".env" -Force
     Write-Host "✅ Production environment template created" -ForegroundColor Green
     Write-Host "⚠️  IMPORTANT: Update .env file with your production values!" -ForegroundColor Red
