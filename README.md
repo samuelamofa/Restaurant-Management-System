@@ -46,27 +46,9 @@ This RMS consists of four main applications:
 └── README.md
 ```
 
-## 🎭 System Versions
+## 🚀 Production System
 
-This system comes in two versions:
-
-### 🎭 Demo Version
-**Perfect for testing, demonstrations, and development**
-- Quick setup with sample data
-- SQLite database (no external DB needed)
-- Test payment keys
-- Pre-populated with demo users and orders
-
-**Quick Start:**
-```powershell
-.\setup-demo.ps1
-.\start-all.ps1
-```
-
-📚 **See `DEMO_SETUP.md` for detailed demo setup guide**
-
-### 🚀 Production Version
-**For live restaurant operations**
+This is a production-ready Restaurant Management System designed for live operations:
 - PostgreSQL database
 - Live Paystack integration
 - Production-grade security
@@ -79,27 +61,31 @@ This system comes in two versions:
 
 📚 **See `PRODUCTION_SETUP.md` for detailed production setup guide**
 
-📖 **See `VERSIONS.md` for version comparison and choosing the right version**
-
 ---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js 18+ 
-- PostgreSQL 14+ (for production) or SQLite (for demo)
+- PostgreSQL 14+ database
+- Paystack account with LIVE API keys
 - npm or yarn
 
 ### Installation
 
-#### Option 1: Demo Version (Recommended for First Time)
+#### Option 1: Automated Setup (Recommended)
 
-1. **Run demo setup script:**
+1. **Run production setup script:**
 ```powershell
-.\setup-demo.ps1
+.\setup-production.ps1
 ```
 
-2. **Start all applications:**
+2. **Configure environment variables:**
+   - Update `backend/.env` with your PostgreSQL connection string
+   - Add your Paystack LIVE keys
+   - Set production URLs
+
+3. **Start all applications:**
 ```powershell
 .\start-all.ps1
 ```
@@ -151,18 +137,9 @@ Terminal 5 - Admin App:
 npm run dev:admin
 ```
 
-## 🔐 Default Admin Credentials
+## 🔐 Creating Admin User
 
-### Demo Version
-After running `setup-demo.ps1`, use these credentials:
-- **Admin:** admin@defusionflame.com / admin123
-- **Receptionist:** receptionist@defusionflame.com / admin123
-- **Cashier:** cashier@defusionflame.com / admin123
-- **Kitchen:** kitchen@defusionflame.com / admin123
-- **Customer:** customer1@defusionflame.com / admin123
-
-### Production Version
-After running `setup-production.ps1`, create admin user:
+After running `setup-production.ps1`, create your admin user:
 ```bash
 cd backend
 ADMIN_EMAIL=your@email.com ADMIN_PASSWORD=strong_password node prisma/seed-production.js
@@ -225,10 +202,8 @@ ADMIN_EMAIL=your@email.com ADMIN_PASSWORD=strong_password node prisma/seed-produ
 
 ## 🚢 Deployment
 
-- **Demo Setup:** See `DEMO_SETUP.md` for demo version setup
-- **Production Setup:** See `PRODUCTION_SETUP.md` for production deployment
+- **Production Setup:** See `PRODUCTION_SETUP.md` for production deployment guide
 - **General Deployment:** See `DEPLOYMENT.md` for detailed deployment instructions
-- **Version Comparison:** See `VERSIONS.md` for choosing the right version
 
 ## 📝 License
 

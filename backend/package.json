@@ -10,7 +10,6 @@
     "migrate": "prisma migrate dev",
     "generate": "prisma generate",
     "seed": "node prisma/seed.js",
-    "seed:demo": "node prisma/seed-demo.js",
     "seed:production": "node prisma/seed-production.js"
   },
   "dependencies": {

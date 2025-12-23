@@ -33,8 +33,10 @@ yarn-error.log*
 *.swo
 *~
 
-# Development Scripts
-*.ps1
+# Development/Demo Scripts (exclude demo, keep production)
+setup-demo.ps1
+fix-system.ps1
+check-system.ps1
 
 # Database
 *.db
@@ -46,7 +48,17 @@ backend/prisma/*.db
 logs/
 *.log
 
-# Uploaded files
+# Uploaded files (user-generated content)
 backend/uploads/*
 !backend/uploads/.gitkeep
+
+# Demo-specific files
+DEMO_SETUP.md
+SYSTEM_STATUS.md
+SYSTEM_FIXED.md
+SETUP_SUMMARY.md
+START_SYSTEM.md
+check-system.js
+test-backend.js
+backend/prisma/seed-demo.js
 
