@@ -3,6 +3,9 @@ node_modules/
 .pnp
 .pnp.js
 
+# Frontend package-lock.json (only backend lock file is tracked)
+frontend/*/package-lock.json
+
 # Testing
 coverage/
 
