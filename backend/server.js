@@ -26,7 +26,10 @@ const path = require('path');
 // Validate required environment variables
 if (!process.env.JWT_SECRET) {
   console.error('❌ JWT_SECRET is not set in environment variables');
-  console.error('   Please set JWT_SECRET in backend/.env');
+  console.error('   Please set JWT_SECRET in your environment:');
+  console.error('   - For Railway: Go to Service → Variables → Add JWT_SECRET');
+  console.error('   - For local: Set JWT_SECRET in backend/.env');
+  console.error('   Generate a secret: openssl rand -base64 32');
   process.exit(1);
 }
 
