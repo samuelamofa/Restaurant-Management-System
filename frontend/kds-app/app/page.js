@@ -285,7 +285,12 @@ function KDSPageContent() {
       
       // More specific error messages
       if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
-        toast.error('Cannot connect to backend server. Please ensure the backend is running on http://localhost:5000');
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+        if (apiUrl.includes('localhost')) {
+          toast.error('Cannot connect to backend server. Please ensure the backend is running on http://localhost:5000');
+        } else {
+          toast.error(`Cannot connect to backend server at ${apiUrl}. Please check your NEXT_PUBLIC_API_URL environment variable.`);
+        }
       } else if (error.response?.status === 401) {
         toast.error('Authentication failed. Please login again.');
         router.push('/login');
