@@ -1,0 +1,14 @@
+# Railway Configuration for Backend Service
+# IMPORTANT: Set Root Directory to 'backend' in Railway Dashboard:
+# Settings → Service Settings → Root Directory = "backend"
+
+[build]
+builder = "NIXPACKS"
+# Build will use: npm ci (from backend/package-lock.json)
+
+[deploy]
+startCommand = "npm start"
+# This runs: npm run prestart (Prisma generate) then npm start
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
