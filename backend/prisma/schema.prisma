@@ -5,11 +5,12 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// SQLite doesn't support enums, using String instead
+// Note: For local development with SQLite, change provider to "sqlite"
+// For production (Railway), use PostgreSQL
 // UserRole: CUSTOMER, RECEPTIONIST, CASHIER, KITCHEN_STAFF, ADMIN
 // OrderStatus: PENDING, CONFIRMED, PREPARING, READY, COMPLETED, CANCELLED
 // PaymentMethod: CASH, CARD, MOMO, PAYSTACK
