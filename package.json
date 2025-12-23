@@ -1,0 +1,29 @@
+{
+  "name": "de-fusion-flame-rms",
+  "version": "1.0.0",
+  "description": "Complete Restaurant Management System for De Fusion Flame Kitchen",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend/*"
+  ],
+  "scripts": {
+    "dev:backend": "cd backend && npm run dev",
+    "dev:customer": "cd frontend/customer-app && npm run dev",
+    "dev:pos": "cd frontend/pos-app && npm run dev",
+    "dev:kds": "cd frontend/kds-app && npm run dev",
+    "dev:admin": "cd frontend/admin-app && npm run dev",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend/customer-app && npm install && cd ../pos-app && npm install && cd ../kds-app && npm install && cd ../admin-app && npm install"
+  },
+  "keywords": [
+    "restaurant",
+    "pos",
+    "ordering",
+    "paystack"
+  ],
+  "author": "De Fusion Flame Kitchen",
+  "license": "ISC",
+  "devDependencies": {
+    "debug": "^4.4.3"
+  }
+}

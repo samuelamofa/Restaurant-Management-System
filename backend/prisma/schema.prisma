@@ -1,0 +1,267 @@
+// Prisma Schema for De Fusion Flame Kitchen RMS
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite doesn't support enums, using String instead
+// UserRole: CUSTOMER, RECEPTIONIST, CASHIER, KITCHEN_STAFF, ADMIN
+// OrderStatus: PENDING, CONFIRMED, PREPARING, READY, COMPLETED, CANCELLED
+// PaymentMethod: CASH, CARD, MOMO, PAYSTACK
+// PaymentStatus: PENDING, PAID, FAILED, REFUNDED
+// OrderType: DINE_IN, TAKEAWAY, ONLINE
+
+model User {
+  id            String   @id @default(uuid())
+  email         String?  @unique
+  phone         String?  @unique
+  password      String
+  firstName     String?
+  lastName      String?
+  role          String   @default("CUSTOMER")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  orders        Order[]
+  createdOrders Order[]  @relation("OrderCreator")
+  preparedOrders Order[] @relation("OrderPreparer")
+  closedDaySessions DaySession[] @relation("DaySessionCloser")
+
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  image       String?
+  displayOrder Int     @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items       MenuItem[]
+
+  @@index([isActive])
+}
+
+model MenuItem {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  image       String?
+  categoryId  String
+  basePrice   Float
+  isAvailable Boolean  @default(true)
+  displayOrder Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  variants    PriceVariant[]
+  addons      Addon[]
+  orderItems  OrderItem[]
+
+  @@index([categoryId])
+  @@index([isAvailable])
+}
+
+model PriceVariant {
+  id        String   @id @default(uuid())
+  menuItemId String
+  name      String   // e.g., "Small", "Medium", "Large"
+  price     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  menuItem  MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@index([menuItemId])
+}
+
+model Addon {
+  id        String   @id @default(uuid())
+  menuItemId String
+  name      String
+  price     Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  menuItem  MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  orderItems OrderItemAddon[]
+
+  @@index([menuItemId])
+}
+
+model Order {
+  id            String        @id @default(uuid())
+  orderNumber   String        @unique
+  customerId    String?
+  createdById   String?       // Staff who created the order (for POS)
+  preparedById  String?       // Kitchen staff who prepared the order
+  orderType     String
+  status        String        @default("PENDING")
+  tableNumber   String?
+  notes         String?
+  deliveryAddress String?     // Delivery address for online orders
+  contactPhone  String?       // Contact phone number for online orders
+  subtotal      Float
+  discount      Float         @default(0)
+  tax           Float         @default(0)
+  total         Float
+  paymentMethod String?
+  paymentStatus String        @default("PENDING")
+  paystackRef   String?       // Paystack transaction reference
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  completedAt   DateTime?
+  readyAt       DateTime?     // When order was marked as READY
+
+  customer      User?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  creator       User?         @relation("OrderCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  preparedBy    User?         @relation("OrderPreparer", fields: [preparedById], references: [id], onDelete: SetNull)
+  items         OrderItem[]
+  payment       Payment?
+
+  @@index([customerId])
+  @@index([status])
+  @@index([orderType])
+  @@index([createdAt])
+  @@index([orderNumber])
+  @@index([preparedById])
+}
+
+model OrderItem {
+  id            String   @id @default(uuid())
+  orderId       String
+  menuItemId    String
+  variantId     String?
+  quantity      Int
+  unitPrice     Float
+  totalPrice    Float
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem      MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  variant       PriceVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  addons        OrderItemAddon[]
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+model OrderItemAddon {
+  id          String   @id @default(uuid())
+  orderItemId String
+  addonId     String
+  price       Float
+  createdAt   DateTime @default(now())
+
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  addon       Addon     @relation(fields: [addonId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId])
+  @@index([addonId])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  orderId       String        @unique
+  amount        Float
+  method        String
+  status        String
+  paystackRef   String?       @unique
+  paystackData  String?       // Store full Paystack response (JSON as string)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([paystackRef])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Inventory {
+  id          String   @id @default(uuid())
+  name        String
+  quantity    Float
+  unit        String   // e.g., "kg", "liters", "pieces"
+  minStock    Float    @default(0)
+  lastUpdated DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String   // e.g., "CREATE_ORDER", "UPDATE_MENU", "PROCESS_PAYMENT"
+  entity    String   // e.g., "Order", "MenuItem"
+  entityId  String?
+  details   String?  // JSON stored as string
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model SystemSettings {
+  id              String   @id @default("system")
+  restaurantName  String   @default("De Fusion Flame Kitchen")
+  restaurantAddress String?
+  restaurantPhone String?
+  restaurantEmail String?
+  taxRate         Float    @default(0.05) // 5% tax
+  currency        String   @default("GHS")
+  currencySymbol  String   @default("₵")
+  orderPrefix     String   @default("ORD")
+  autoConfirmOrders Boolean @default(false)
+  requirePaymentBeforePrep Boolean @default(false)
+  paystackSecretKey String? // Paystack Secret Key
+  paystackPublicKey String? // Paystack Public Key
+  paystackWebhookSecret String? // Paystack Webhook Secret
+  updatedAt       DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model DaySession {
+  id              String   @id @default(uuid())
+  date            String   @unique // Format: YYYY-MM-DD
+  isClosed        Boolean  @default(false)
+  openedAt        DateTime @default(now())
+  closedAt        DateTime?
+  closedById      String?  // User who closed the day
+  totalOrders     Int      @default(0)
+  totalRevenue    Float    @default(0)
+  totalCash       Float    @default(0)
+  totalCard       Float    @default(0)
+  totalMomo       Float    @default(0)
+  totalPaystack   Float    @default(0)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  closedBy        User?    @relation("DaySessionCloser", fields: [closedById], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@index([isClosed])
+  @@index([closedAt])
+}
+

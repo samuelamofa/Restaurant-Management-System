@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #121212;
+  --secondary: #1E1E1E;
+  --accent: #C59D5F;
+  --success: #2ECC71;
+  --danger: #E74C3C;
+  --text: #F5F5F5;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background-color: var(--primary);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.glass {
+  background: rgba(30, 30, 30, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(197, 157, 95, 0.2);
+}
+
+.btn-primary {
+  @apply bg-accent text-primary font-semibold py-4 px-8 rounded-lg hover:bg-opacity-90 transition-all duration-200 shadow-lg text-lg;
+}
+
+.btn-secondary {
+  @apply bg-secondary text-text border border-accent font-semibold py-4 px-8 rounded-lg hover:bg-accent hover:text-primary transition-all duration-200 text-lg;
+}
+
+.btn-danger {
+  @apply bg-danger text-text font-semibold py-4 px-8 rounded-lg hover:bg-opacity-90 transition-all duration-200 text-lg;
+}
+
+.card {
+  @apply glass rounded-xl p-6 shadow-xl;
+}
+
+/* Large buttons for POS */
+.btn-large {
+  @apply py-6 px-12 text-2xl font-bold;
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(197, 157, 95, 0.8);
+}
+
+/* Print styles for receipt */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  .print\:block,
+  .print\:block * {
+    visibility: visible;
+  }
+  
+  .print\:block {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    display: block !important;
+  }
+  
+  @page {
+    size: 80mm auto;
+    margin: 0;
+    padding: 0;
+  }
+  
+  body {
+    margin: 0;
+    padding: 0;
+  }
+}
+
