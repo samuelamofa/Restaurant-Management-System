@@ -8,6 +8,7 @@
     "frontend/*"
   ],
   "scripts": {
+    "start": "npm run start --workspace=rms-backend",
     "dev:backend": "cd backend && npm run dev",
     "dev:customer": "cd frontend/customer-app && npm run dev",
     "dev:pos": "cd frontend/pos-app && npm run dev",
