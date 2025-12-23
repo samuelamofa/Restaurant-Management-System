@@ -105,6 +105,29 @@ npx prisma generate
 
 ### Runtime Issues
 
+**"Environment variable not found: DATABASE_URL" (P1012 error):**
+- **This is the most common error!** Prisma requires `DATABASE_URL` to be set before it can generate the client
+- Go to Railway dashboard → Your backend service → Variables tab
+- Add `DATABASE_URL` variable
+- If using Railway PostgreSQL:
+  1. Go to your PostgreSQL service in Railway
+  2. Click on Variables tab
+  3. Copy the `DATABASE_URL` value (it's automatically generated)
+  4. Go back to your backend service
+  5. Add it as a variable named `DATABASE_URL`
+- If using external PostgreSQL: Format as `postgresql://user:password@host:port/database?schema=public`
+- **Important:** The prestart script will now provide better error messages if `DATABASE_URL` is missing
+
+**"The datasource provider `postgresql` does not match migration_lock.toml, `sqlite`" (P3019 error):**
+- **This happens when switching from SQLite (local dev) to PostgreSQL (production)**
+- The migration lock file has been updated to `postgresql` for production
+- The prestart script will automatically use `prisma db push` for initial schema setup
+- For fresh PostgreSQL databases, this will work automatically
+- **For future migrations:** Consider creating PostgreSQL-specific migrations:
+  ```bash
+  npx prisma migrate dev --name init_postgresql
+  ```
+
 **"JWT_SECRET is not set in environment variables":**
 - Go to Railway dashboard → Your service → Variables tab
 - Add `JWT_SECRET` variable with a strong random value
@@ -119,7 +142,7 @@ npx prisma generate
 
 **Application keeps restarting:**
 - Check Railway logs for error messages
-- Verify all required environment variables are set
+- Verify all required environment variables are set (especially `DATABASE_URL` and `JWT_SECRET`)
 - Ensure `DATABASE_URL` points to a valid database
 - Check that `JWT_SECRET` is set and not empty
 
