@@ -279,12 +279,45 @@ Should return menu items (or empty array if no data).
 **Symptoms:**
 - Deployment fails during `prestart` script
 - Database schema errors
+- Error: `P3009 - migrate found failed migrations`
 
 **Solutions:**
-1. Check `DATABASE_URL` is valid PostgreSQL URL
-2. Verify database is accessible from Railway
-3. Check migration files are present in `backend/prisma/migrations`
-4. If switching from SQLite, ensure `schema.prisma` uses `provider = "postgresql"`
+
+#### For P3009 (Failed Migrations):
+The prestart script now auto-resolves this, but if it fails:
+
+1. **Option 1: Auto-resolve (Recommended)**
+   - The script will automatically detect and resolve failed migrations
+   - If auto-resolution fails, see Option 2
+
+2. **Option 2: Manual Resolution via Railway CLI**
+   ```bash
+   # Connect to Railway service
+   railway run bash
+   
+   # Navigate to backend
+   cd backend
+   
+   # Resolve the failed migration (replace with your migration name)
+   npx prisma migrate resolve --rolled-back 20251221091813_init
+   
+   # Retry migrations
+   npx prisma migrate deploy
+   ```
+
+3. **Option 3: Use db push (Fresh Database)**
+   ```bash
+   # If database is empty/fresh, use db push instead
+   railway run bash
+   cd backend
+   npx prisma db push --accept-data-loss --skip-generate
+   ```
+
+4. **General Migration Issues:**
+   - Check `DATABASE_URL` is valid PostgreSQL URL
+   - Verify database is accessible from Railway
+   - Check migration files are present in `backend/prisma/migrations`
+   - If switching from SQLite, ensure `schema.prisma` uses `provider = "postgresql"`
 
 ### Issue: Images not loading
 

@@ -69,9 +69,88 @@ try {
     const errorMessage = migrateError.message || String(migrateError);
     const errorCode = migrateError.status || migrateError.code;
     
+    // Check for failed migration error (P3009)
+    // This occurs when a migration was started but didn't complete
+    if (errorMessage.includes('P3009') || 
+        errorMessage.includes('failed migrations') ||
+        errorMessage.includes('migrate found failed migrations')) {
+      console.log('');
+      console.warn('⚠️  Failed migration detected (P3009)');
+      console.warn('   This usually happens when a migration was interrupted.');
+      console.warn('   Attempting to resolve by marking failed migration as rolled back...');
+      console.log('');
+      
+      try {
+        // Extract migration name from error message if possible
+        // Format: "The `20251221091813_init` migration started at..."
+        const migrationMatch = errorMessage.match(/`(\d+_\w+)`/);
+        const migrationName = migrationMatch ? migrationMatch[1] : null;
+        
+        // Also try to get it from stderr if available
+        let fullErrorOutput = errorMessage;
+        if (migrateError.stderr) {
+          fullErrorOutput += '\n' + migrateError.stderr.toString();
+        }
+        if (migrateError.stdout) {
+          fullErrorOutput += '\n' + migrateError.stdout.toString();
+        }
+        
+        // Try multiple patterns to find migration name
+        const patterns = [
+          /`(\d+_\w+)`/,  // `20251221091813_init`
+          /migration `(\d+_\w+)`/,  // migration `20251221091813_init`
+          /The `(\d+_\w+)` migration/,  // The `20251221091813_init` migration
+        ];
+        
+        let foundMigrationName = migrationName;
+        for (const pattern of patterns) {
+          const match = fullErrorOutput.match(pattern);
+          if (match && match[1]) {
+            foundMigrationName = match[1];
+            break;
+          }
+        }
+        
+        if (foundMigrationName) {
+          console.log(`   Resolving failed migration: ${foundMigrationName}`);
+          // Mark the failed migration as rolled back
+          execSync(`npx prisma migrate resolve --rolled-back ${foundMigrationName}`, {
+            stdio: 'inherit',
+            env: process.env,
+          });
+          console.log('✅ Failed migration marked as rolled back');
+          console.log('');
+          console.log('   Retrying migrations...');
+          
+          // Retry migrations
+          execSync('npx prisma migrate deploy', {
+            stdio: 'inherit',
+            env: process.env,
+          });
+          console.log('✅ Database migrations completed successfully');
+        } else {
+          // If we can't extract the migration name, try to resolve all failed migrations
+          console.log('   Attempting to resolve all failed migrations...');
+          console.log('   (This may require manual intervention if multiple migrations failed)');
+          throw new Error('Cannot auto-resolve: Migration name not found in error message. Please resolve manually using: npx prisma migrate resolve --rolled-back <migration_name>');
+        }
+      } catch (resolveError) {
+        console.error('');
+        console.error('❌ Failed to auto-resolve migration issue');
+        console.error('');
+        console.error('📋 Manual Resolution Steps:');
+        console.error('   1. Connect to your Railway database');
+        console.error('   2. Run: npx prisma migrate resolve --rolled-back <migration_name>');
+        console.error('   3. Or reset migrations: npx prisma migrate resolve --applied <migration_name>');
+        console.error('');
+        console.error('   Alternative: Use db push for initial setup:');
+        console.error('   npx prisma db push --accept-data-loss --skip-generate');
+        throw resolveError;
+      }
+    }
     // Check for provider mismatch error (P3019)
     // This error occurs when migration_lock.toml has different provider than schema
-    if (errorMessage.includes('P3019') || 
+    else if (errorMessage.includes('P3019') || 
         errorMessage.includes('migration_lock') || 
         errorMessage.includes('provider') ||
         errorMessage.includes('does not match') ||
