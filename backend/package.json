@@ -8,9 +8,10 @@
     "dev": "nodemon server.js",
     "prestart": "node scripts/prestart.js",
     "start": "node server.js",
+    "postinstall": "prisma generate",
     "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
     "generate": "prisma generate",
-    "seed": "node prisma/seed.js",
     "seed:production": "node prisma/seed-production.js"
   },
   "dependencies": {

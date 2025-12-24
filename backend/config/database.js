@@ -1,5 +1,13 @@
 const { PrismaClient } = require('@prisma/client');
 
+// Prevent SQLite in production
+if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL?.includes('sqlite')) {
+  console.error('❌ ERROR: SQLite is not allowed in production!');
+  console.error('   Please use PostgreSQL for production deployments.');
+  console.error('   Update your DATABASE_URL to use PostgreSQL.');
+  process.exit(1);
+}
+
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
 });

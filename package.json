@@ -14,7 +14,11 @@
     "dev:pos": "cd frontend/pos-app && npm run dev",
     "dev:kds": "cd frontend/kds-app && npm run dev",
     "dev:admin": "cd frontend/admin-app && npm run dev",
-    "install:all": "npm install && cd backend && npm install && cd ../frontend/customer-app && npm install && cd ../pos-app && npm install && cd ../kds-app && npm install && cd ../admin-app && npm install"
+    "install:all": "npm install && cd backend && npm install && cd ../frontend/customer-app && npm install && cd ../pos-app && npm install && cd ../kds-app && npm install && cd ../admin-app && npm install",
+    "build:customer": "cd frontend/customer-app && npm run build",
+    "build:pos": "cd frontend/pos-app && npm run build",
+    "build:kds": "cd frontend/kds-app && npm run build",
+    "build:admin": "cd frontend/admin-app && npm run build"
   },
   "keywords": [
     "restaurant",

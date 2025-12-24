@@ -38,7 +38,7 @@ npx prisma generate
 
 ```bash
 cd backend
-npm run seed
+npm run seed:production
 ```
 
 ## 🔧 Backend Deployment
