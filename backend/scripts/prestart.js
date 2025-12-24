@@ -69,11 +69,29 @@ try {
     const errorMessage = migrateError.message || String(migrateError);
     const errorCode = migrateError.status || migrateError.code;
     
+    // Collect all error output
+    let fullErrorOutput = errorMessage;
+    if (migrateError.stderr) {
+      fullErrorOutput += '\n' + migrateError.stderr.toString();
+    }
+    if (migrateError.stdout) {
+      fullErrorOutput += '\n' + migrateError.stdout.toString();
+    }
+    
+    // Log the full error for debugging
+    console.log('');
+    console.log('📋 Full error output for debugging:');
+    console.log(fullErrorOutput);
+    console.log('');
+    
     // Check for failed migration error (P3009)
     // This occurs when a migration was started but didn't complete
     if (errorMessage.includes('P3009') || 
+        fullErrorOutput.includes('P3009') ||
         errorMessage.includes('failed migrations') ||
-        errorMessage.includes('migrate found failed migrations')) {
+        fullErrorOutput.includes('failed migrations') ||
+        errorMessage.includes('migrate found failed migrations') ||
+        fullErrorOutput.includes('migrate found failed migrations')) {
       console.log('');
       console.warn('⚠️  Failed migration detected (P3009)');
       console.warn('   This usually happens when a migration was interrupted.');
@@ -81,44 +99,52 @@ try {
       console.log('');
       
       try {
-        // Extract migration name from error message if possible
-        // Format: "The `20251221091813_init` migration started at..."
-        const migrationMatch = errorMessage.match(/`(\d+_\w+)`/);
-        const migrationName = migrationMatch ? migrationMatch[1] : null;
-        
-        // Also try to get it from stderr if available
-        let fullErrorOutput = errorMessage;
-        if (migrateError.stderr) {
-          fullErrorOutput += '\n' + migrateError.stderr.toString();
-        }
-        if (migrateError.stdout) {
-          fullErrorOutput += '\n' + migrateError.stdout.toString();
-        }
-        
         // Try multiple patterns to find migration name
+        // Format examples:
+        // - "The `20251221091813_init` migration started at..."
+        // - "migration `20251221091813_init`"
+        // - "`20251221091813_init`"
         const patterns = [
-          /`(\d+_\w+)`/,  // `20251221091813_init`
-          /migration `(\d+_\w+)`/,  // migration `20251221091813_init`
           /The `(\d+_\w+)` migration/,  // The `20251221091813_init` migration
+          /migration `(\d+_\w+)`/,  // migration `20251221091813_init`
+          /`(\d+_\w+)`/,  // `20251221091813_init`
+          /(\d+_\w+)/,  // 20251221091813_init (fallback)
         ];
         
-        let foundMigrationName = migrationName;
+        let foundMigrationName = null;
         for (const pattern of patterns) {
           const match = fullErrorOutput.match(pattern);
           if (match && match[1]) {
             foundMigrationName = match[1];
+            console.log(`   Found migration name: ${foundMigrationName}`);
             break;
           }
         }
         
         if (foundMigrationName) {
           console.log(`   Resolving failed migration: ${foundMigrationName}`);
-          // Mark the failed migration as rolled back
-          execSync(`npx prisma migrate resolve --rolled-back ${foundMigrationName}`, {
-            stdio: 'inherit',
-            env: process.env,
-          });
-          console.log('✅ Failed migration marked as rolled back');
+          
+          // Try rolled-back first (most common case)
+          try {
+            execSync(`npx prisma migrate resolve --rolled-back ${foundMigrationName}`, {
+              stdio: 'inherit',
+              env: process.env,
+            });
+            console.log('✅ Failed migration marked as rolled back');
+          } catch (rollbackError) {
+            // If rolled-back fails, try applied (in case migration partially completed)
+            console.log('   Rolled-back failed, trying applied...');
+            try {
+              execSync(`npx prisma migrate resolve --applied ${foundMigrationName}`, {
+                stdio: 'inherit',
+                env: process.env,
+              });
+              console.log('✅ Failed migration marked as applied');
+            } catch (appliedError) {
+              throw new Error(`Failed to resolve migration ${foundMigrationName}. Error: ${appliedError.message}`);
+            }
+          }
+          
           console.log('');
           console.log('   Retrying migrations...');
           
@@ -129,19 +155,49 @@ try {
           });
           console.log('✅ Database migrations completed successfully');
         } else {
-          // If we can't extract the migration name, try to resolve all failed migrations
-          console.log('   Attempting to resolve all failed migrations...');
-          console.log('   (This may require manual intervention if multiple migrations failed)');
-          throw new Error('Cannot auto-resolve: Migration name not found in error message. Please resolve manually using: npx prisma migrate resolve --rolled-back <migration_name>');
+          // If we can't extract the migration name, list migrations and try to resolve
+          console.log('   Could not extract migration name from error.');
+          console.log('   Attempting to list migrations to find failed one...');
+          
+          try {
+            // Try to get migration list
+            const migrationList = execSync('npx prisma migrate status', {
+              encoding: 'utf8',
+              env: process.env,
+            });
+            console.log('Migration status:', migrationList);
+            
+            // Try to extract from status output
+            const statusMatch = migrationList.match(/(\d+_\w+).*failed/i);
+            if (statusMatch && statusMatch[1]) {
+              const autoFoundName = statusMatch[1];
+              console.log(`   Auto-detected failed migration: ${autoFoundName}`);
+              execSync(`npx prisma migrate resolve --rolled-back ${autoFoundName}`, {
+                stdio: 'inherit',
+                env: process.env,
+              });
+              execSync('npx prisma migrate deploy', {
+                stdio: 'inherit',
+                env: process.env,
+              });
+              console.log('✅ Database migrations completed successfully');
+            } else {
+              throw new Error('Cannot auto-resolve: Migration name not found. Please resolve manually.');
+            }
+          } catch (statusError) {
+            throw new Error('Cannot auto-resolve: Migration name not found in error message. Please resolve manually using: npx prisma migrate resolve --rolled-back <migration_name>');
+          }
         }
       } catch (resolveError) {
         console.error('');
         console.error('❌ Failed to auto-resolve migration issue');
+        console.error(`   Error: ${resolveError.message}`);
         console.error('');
         console.error('📋 Manual Resolution Steps:');
-        console.error('   1. Connect to your Railway database');
-        console.error('   2. Run: npx prisma migrate resolve --rolled-back <migration_name>');
-        console.error('   3. Or reset migrations: npx prisma migrate resolve --applied <migration_name>');
+        console.error('   1. Connect to your Railway database via web console');
+        console.error('   2. Run: npx prisma migrate resolve --rolled-back 20251221091813_init');
+        console.error('   3. Or: npx prisma migrate resolve --applied 20251221091813_init');
+        console.error('   4. Then: npx prisma migrate deploy');
         console.error('');
         console.error('   Alternative: Use db push for initial setup:');
         console.error('   npx prisma db push --accept-data-loss --skip-generate');
