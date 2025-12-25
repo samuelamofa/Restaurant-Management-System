@@ -10,6 +10,8 @@ datasource db {
 }
 
 // Railway deployment: Uses PostgreSQL via DATABASE_URL
+// Migration lock file (migration_lock.toml) is set to postgresql
+// Old SQLite migrations are backed up in migrations_sqlite_backup (if created)
 // For local development with SQLite, change provider to "sqlite" and use file:./dev.db
 // UserRole: CUSTOMER, RECEPTIONIST, CASHIER, KITCHEN_STAFF, ADMIN
 // OrderStatus: PENDING, CONFIRMED, PREPARING, READY, COMPLETED, CANCELLED

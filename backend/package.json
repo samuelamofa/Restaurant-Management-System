@@ -13,6 +13,7 @@
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "migrate:runtime": "node scripts/migrate-runtime.js",
+    "migrate:baseline": "node scripts/baseline-postgresql.js",
     "generate": "prisma generate",
     "seed": "node prisma/seed-production.js",
     "seed:production": "node prisma/seed-production.js",
