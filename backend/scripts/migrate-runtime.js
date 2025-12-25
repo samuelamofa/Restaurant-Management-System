@@ -9,10 +9,13 @@
  * Recovery Process (P3009 Error):
  * 1. ALWAYS run `prisma migrate status` BEFORE `prisma migrate deploy`
  * 2. Parse status output to detect failed migrations
- * 3. If migration `20251221091813_init` is failed, resolve it using:
- *    `npx prisma migrate resolve --rolled-back 20251221091813_init`
- * 4. After resolution, run `prisma migrate deploy`
- * 5. Ensure this runs only once per container start (prevents infinite loops)
+ * 3. If any migration is failed, resolve it using:
+ *    `npx prisma migrate resolve --rolled-back <migration_name>`
+ * 4. Known migrations that may need resolution:
+ *    - 20251221091813_init (already resolved)
+ *    - 20251221114916_add_kitchen_tracking (currently failing)
+ * 5. After resolution, run `prisma migrate deploy`
+ * 6. Ensure this runs only once per container start (prevents infinite loops)
  * 
  * Safety:
  * - Does NOT delete the database
@@ -370,13 +373,29 @@ if (statusCheck.hasFailedMigrations && statusCheck.failedMigrationNames.length >
   console.log('⚠️  Failed migrations detected - resolving before deploy');
   console.log('');
   
-  // Specifically prioritize resolving migration `20251221091813_init` if it's failed
-  const targetMigration = '20251221091813_init';
+  // Prioritize resolving known problematic migrations first
+  // Order matters: resolve in chronological order (oldest first)
+  const priorityMigrations = [
+    '20251221091813_init',
+    '20251221114916_add_kitchen_tracking'
+  ];
   
-  // Resolve all failed migrations, prioritizing the target migration first
-  const migrationsToResolve = statusCheck.failedMigrationNames.includes(targetMigration)
-    ? [targetMigration, ...statusCheck.failedMigrationNames.filter(m => m !== targetMigration)]
-    : statusCheck.failedMigrationNames;
+  // Resolve all failed migrations, prioritizing known migrations first
+  const migrationsToResolve = [];
+  
+  // Add priority migrations first (if they're in the failed list)
+  for (const priorityMigration of priorityMigrations) {
+    if (statusCheck.failedMigrationNames.includes(priorityMigration)) {
+      migrationsToResolve.push(priorityMigration);
+    }
+  }
+  
+  // Add any other failed migrations that aren't in the priority list
+  for (const failedMigration of statusCheck.failedMigrationNames) {
+    if (!migrationsToResolve.includes(failedMigration)) {
+      migrationsToResolve.push(failedMigration);
+    }
+  }
   
   if (migrationsToResolve.length > 0) {
     

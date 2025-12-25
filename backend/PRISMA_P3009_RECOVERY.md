@@ -100,18 +100,55 @@ The migration `20251221091813_init` failed
 ```
 
 ### 3. Resolve Failed Migration
+
+**Option A: Using Prisma CLI directly (Railway Shell)**
 ```bash
 # Mark as rolled back (recommended)
-npx prisma migrate resolve --rolled-back 20251221091813_init
+npx prisma migrate resolve --rolled-back 20251221114916_add_kitchen_tracking
 
 # Or mark as applied (if migration partially completed)
-npx prisma migrate resolve --applied 20251221091813_init
+npx prisma migrate resolve --applied 20251221114916_add_kitchen_tracking
+```
+
+**Option B: Using the helper script**
+```bash
+# From backend directory in Railway shell
+node scripts/resolve-migration.js 20251221114916_add_kitchen_tracking
 ```
 
 ### 4. Re-apply Migrations
 ```bash
 npx prisma migrate deploy
 ```
+
+### Railway-Specific Instructions
+
+To resolve a failed migration in Railway:
+
+1. **Open Railway Shell:**
+   - Go to your backend service in Railway
+   - Click on "Shell" or "Deploy Logs"
+   - Open a terminal/shell session
+
+2. **Navigate to backend directory:**
+   ```bash
+   cd backend
+   ```
+
+3. **Resolve the failed migration:**
+   ```bash
+   npx prisma migrate resolve --rolled-back 20251221114916_add_kitchen_tracking
+   ```
+
+4. **Verify and apply pending migrations:**
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+5. **Check status:**
+   ```bash
+   npx prisma migrate status
+   ```
 
 ## Safety Guarantees
 
