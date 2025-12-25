@@ -31,6 +31,8 @@ migrateProcess.on('close', (code) => {
   if (code !== 0) {
     console.error('');
     console.error('❌ Migrations failed, not starting server');
+    console.error('   Exiting to prevent restart loop on Railway');
+    console.error('   Please check logs above for migration errors');
     process.exit(code);
   }
   

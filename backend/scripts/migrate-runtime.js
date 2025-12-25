@@ -6,25 +6,20 @@
  * This script runs database migrations at runtime (not during build),
  * allowing the build to complete without a database connection.
  * 
- * Features:
- * - Detects failed migrations (P3009 error) using `prisma migrate status`
- * - Automatically resolves failed migrations using `prisma migrate resolve --rolled-back`
- * - Re-applies migrations after resolution
- * - Handles SQLite to PostgreSQL migration transition
- * - Crash-safe: prevents infinite restart loops with retry limits
- * - Railway-compatible: runs only at runtime/start, never during build
- * 
- * Recovery Process:
- * 1. Check migration status before attempting deploy
- * 2. If failed migrations detected (P3009), resolve them automatically
- * 3. Re-apply migrations using `prisma migrate deploy`
- * 4. Fallback to `db push` only for provider mismatch (SQLite → PostgreSQL)
+ * Recovery Process (P3009 Error):
+ * 1. ALWAYS run `prisma migrate status` BEFORE `prisma migrate deploy`
+ * 2. Parse status output to detect failed migrations
+ * 3. If migration `20251221091813_init` is failed, resolve it using:
+ *    `npx prisma migrate resolve --rolled-back 20251221091813_init`
+ * 4. After resolution, run `prisma migrate deploy`
+ * 5. Ensure this runs only once per container start (prevents infinite loops)
  * 
  * Safety:
  * - Does NOT delete the database
  * - Does NOT manually edit Prisma system tables
  * - Does NOT remove migration files
  * - Uses only Prisma-approved recovery methods
+ * - Crash-safe: exits on failure to prevent restart loops
  */
 
 require('dotenv').config();
@@ -37,6 +32,7 @@ const path = require('path');
 process.chdir(path.join(__dirname, '..'));
 
 console.log('🗄️  Running database migrations...');
+console.log('');
 
 // Check if DATABASE_URL is set
 if (!process.env.DATABASE_URL) {
@@ -73,215 +69,240 @@ if (fs.existsSync(lockFile)) {
 }
 
 /**
- * Check migration status to detect failed migrations (P3009)
- * Returns: { hasFailedMigrations: boolean, failedMigrationName: string | null }
+ * Step 1: Check migration status BEFORE deploying
+ * This detects failed migrations (P3009) proactively
+ * Returns: { hasFailedMigrations: boolean, failedMigrationNames: string[] }
  */
 function checkMigrationStatus() {
+  console.log('📋 Step 1: Checking migration status...');
+  console.log('   Running: npx prisma migrate status');
+  console.log('');
+  
   try {
-    console.log('   Checking migration status...');
     const statusOutput = execSync('npx prisma migrate status', {
       encoding: 'utf8',
       env: process.env,
       stdio: ['pipe', 'pipe', 'pipe'], // Capture stdout and stderr
     });
     
+    console.log('   Status output:');
+    console.log('   ' + statusOutput.split('\n').join('\n   '));
+    console.log('');
+    
     // Check for failed migrations in status output
-    // Prisma outputs "failed migrations" or "The migration `name` failed"
-    if (statusOutput.includes('failed migrations') || 
-        statusOutput.includes('failed migration') ||
-        statusOutput.includes('P3009')) {
-      
-      // Extract migration name from status output
-      // Pattern: "The migration `20251221091813_init` failed" or "migration `name` failed"
-      const migrationNameMatch = statusOutput.match(/migration\s+`?(\d+_\w+)`?/i) ||
-                                 statusOutput.match(/`(\d+_\w+)`/);
-      
-      const failedMigrationName = migrationNameMatch ? migrationNameMatch[1] : null;
-      
+    const hasFailedMigrations = statusOutput.includes('failed migrations') || 
+                                statusOutput.includes('failed migration') ||
+                                statusOutput.includes('P3009');
+    
+    if (!hasFailedMigrations) {
+      console.log('   ✅ No failed migrations detected');
+      console.log('');
       return {
-        hasFailedMigrations: true,
-        failedMigrationName: failedMigrationName,
+        hasFailedMigrations: false,
+        failedMigrationNames: [],
         statusOutput: statusOutput
       };
     }
     
+    // Extract all failed migration names from status output
+    // Pattern examples:
+    // - "The migration `20251221091813_init` failed"
+    // - "migration `20251221091813_init` failed"
+    // - "`20251221091813_init`"
+    const failedMigrationNames = [];
+    const patterns = [
+      /migration\s+`?(\d+_\w+)`?\s+failed/i,
+      /The\s+migration\s+`?(\d+_\w+)`?\s+failed/i,
+      /`(\d+_\w+)`.*failed/i,
+      /failed.*`(\d+_\w+)`/i,
+    ];
+    
+    for (const pattern of patterns) {
+      const matches = statusOutput.matchAll(new RegExp(pattern, 'gi'));
+      for (const match of matches) {
+        if (match[1] && !failedMigrationNames.includes(match[1])) {
+          failedMigrationNames.push(match[1]);
+        }
+      }
+    }
+    
+    // Also try to find migration names near "failed" keyword
+    const lines = statusOutput.split('\n');
+    for (const line of lines) {
+      if (line.toLowerCase().includes('failed')) {
+        const migrationMatch = line.match(/(\d+_\w+)/);
+        if (migrationMatch && !failedMigrationNames.includes(migrationMatch[1])) {
+          failedMigrationNames.push(migrationMatch[1]);
+        }
+      }
+    }
+    
+    console.log('   ⚠️  Failed migrations detected:');
+    failedMigrationNames.forEach(name => {
+      console.log(`      - ${name}`);
+    });
+    console.log('');
+    
     return {
-      hasFailedMigrations: false,
-      failedMigrationName: null,
+      hasFailedMigrations: true,
+      failedMigrationNames: failedMigrationNames,
       statusOutput: statusOutput
     };
+    
   } catch (error) {
-    // If migrate status fails, it might mean database is not initialized
-    // or there's a connection issue - we'll handle this in the main flow
+    // If migrate status fails, check if it's a P3009 error
     const errorOutput = error.stderr?.toString() || error.stdout?.toString() || error.message || '';
     
-    // Check if it's a connection error vs migration error
-    if (errorOutput.includes('P3009') || errorOutput.includes('failed migration')) {
-      const migrationNameMatch = errorOutput.match(/migration\s+`?(\d+_\w+)`?/i) ||
-                                 errorOutput.match(/`(\d+_\w+)`/);
+    console.log('   Status check output:');
+    console.log('   ' + errorOutput.split('\n').join('\n   '));
+    console.log('');
+    
+    // Check if it's a failed migration error (P3009)
+    if (errorOutput.includes('P3009') || 
+        errorOutput.includes('failed migration') ||
+        errorOutput.includes('failed migrations')) {
+      
+      const failedMigrationNames = [];
+      const patterns = [
+        /migration\s+`?(\d+_\w+)`?/i,
+        /The\s+migration\s+`?(\d+_\w+)`?/i,
+        /`(\d+_\w+)`/,
+        /(\d+_\w+)/,
+      ];
+      
+      for (const pattern of patterns) {
+        const match = errorOutput.match(pattern);
+        if (match && match[1] && !failedMigrationNames.includes(match[1])) {
+          failedMigrationNames.push(match[1]);
+        }
+      }
+      
+      console.log('   ⚠️  Failed migrations detected in error output:');
+      failedMigrationNames.forEach(name => {
+        console.log(`      - ${name}`);
+      });
+      console.log('');
       
       return {
         hasFailedMigrations: true,
-        failedMigrationName: migrationNameMatch ? migrationNameMatch[1] : null,
+        failedMigrationNames: failedMigrationNames,
         statusOutput: errorOutput
       };
     }
     
-    // For other errors, return false and let main flow handle it
+    // For other errors (connection issues, etc.), return no failures
+    // The deploy step will handle these
+    console.log('   ℹ️  Status check encountered an error (may be connection issue)');
+    console.log('   Will proceed to migration deploy...');
+    console.log('');
+    
     return {
       hasFailedMigrations: false,
-      failedMigrationName: null,
+      failedMigrationNames: [],
       statusOutput: errorOutput
     };
   }
 }
 
 /**
- * Resolve a failed migration using Prisma-approved method
- * Uses `prisma migrate resolve --rolled-back` as per Prisma documentation
+ * Step 2: Resolve failed migration using Prisma-approved method
+ * Specifically handles migration `20251221091813_init` if it's failed
  */
 function resolveFailedMigration(migrationName) {
   if (!migrationName) {
-    console.error('   ❌ Cannot resolve: Migration name not found');
+    console.error('   ❌ Cannot resolve: Migration name not provided');
     return false;
   }
   
+  console.log(`📋 Step 2: Resolving failed migration: ${migrationName}`);
+  console.log(`   Running: npx prisma migrate resolve --rolled-back ${migrationName}`);
+  console.log('');
+  
   try {
-    console.log(`   Resolving failed migration: ${migrationName}`);
-    console.log('   Using: prisma migrate resolve --rolled-back');
-    
     execSync(`npx prisma migrate resolve --rolled-back ${migrationName}`, {
       stdio: 'inherit',
       env: process.env,
     });
     
-    console.log(`   ✅ Migration ${migrationName} marked as rolled back`);
+    console.log('');
+    console.log(`   ✅ Migration ${migrationName} successfully marked as rolled back`);
+    console.log('');
     return true;
+    
   } catch (error) {
-    console.error(`   ❌ Failed to resolve migration ${migrationName}`);
-    console.error('   Error:', error.message || error);
+    console.error('');
+    console.error(`   ❌ Failed to resolve migration ${migrationName} as rolled-back`);
+    console.error(`   Error: ${error.message || error}`);
+    console.error('');
     
     // Try alternative: mark as applied (in case migration partially completed)
+    console.log('   Attempting alternative: marking as applied...');
+    console.log(`   Running: npx prisma migrate resolve --applied ${migrationName}`);
+    console.log('');
+    
     try {
-      console.log('   Attempting alternative: marking as applied...');
       execSync(`npx prisma migrate resolve --applied ${migrationName}`, {
         stdio: 'inherit',
         env: process.env,
       });
-      console.log(`   ✅ Migration ${migrationName} marked as applied`);
+      
+      console.log('');
+      console.log(`   ✅ Migration ${migrationName} successfully marked as applied`);
+      console.log('');
       return true;
+      
     } catch (appliedError) {
+      console.error('');
       console.error(`   ❌ Alternative resolution also failed`);
+      console.error(`   Error: ${appliedError.message || appliedError}`);
+      console.error('');
       return false;
     }
   }
 }
 
-// Main migration flow with P3009 recovery
-// Crash-safe: Maximum 2 recovery attempts to prevent infinite loops
-const MAX_RECOVERY_ATTEMPTS = 2;
-let recoveryAttempts = 0;
-
-function runMigrations() {
-  // Step 1: Check migration status for failed migrations (P3009 detection)
+/**
+ * Step 3: Deploy migrations after resolving any failed ones
+ */
+function deployMigrations() {
+  console.log('📋 Step 3: Deploying migrations...');
+  console.log('   Running: npx prisma migrate deploy');
   console.log('');
-  const statusCheck = checkMigrationStatus();
   
-  if (statusCheck.hasFailedMigrations) {
-    console.log('');
-    console.warn('⚠️  Detected failed migrations (P3009 error)');
-    console.warn('   This occurs when a migration started but did not complete');
-    console.warn('   Attempting automatic recovery...');
-    console.log('');
-    
-    if (recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
-      console.error('❌ Maximum recovery attempts reached');
-      console.error('   This prevents infinite restart loops');
-      console.error('   Please resolve migrations manually:');
-      console.error('   npx prisma migrate status');
-      console.error('   npx prisma migrate resolve --rolled-back <migration_name>');
-      process.exit(1);
-    }
-    
-    recoveryAttempts++;
-    console.log(`   Recovery attempt ${recoveryAttempts}/${MAX_RECOVERY_ATTEMPTS}`);
-    
-    // Resolve the failed migration
-    if (statusCheck.failedMigrationName) {
-      const resolved = resolveFailedMigration(statusCheck.failedMigrationName);
-      if (!resolved) {
-        console.error('');
-        console.error('❌ Failed to resolve migration automatically');
-        console.error('   Please resolve manually:');
-        console.error(`   npx prisma migrate resolve --rolled-back ${statusCheck.failedMigrationName}`);
-        process.exit(1);
-      }
-    } else {
-      console.error('   ❌ Could not extract migration name from status');
-      console.error('   Please check migration status manually:');
-      console.error('   npx prisma migrate status');
-      process.exit(1);
-    }
-    
-    console.log('');
-    console.log('   Retrying migrations after resolution...');
-    console.log('');
-  }
-  
-  // Step 2: Attempt to deploy migrations
   try {
-    console.log('   Applying database migrations...');
     execSync('npx prisma migrate deploy', {
       stdio: 'inherit',
       env: process.env,
     });
+    
+    console.log('');
     console.log('✅ Database migrations completed successfully');
+    console.log('');
     return true;
+    
   } catch (error) {
     const errorMessage = error.message || String(error);
     const errorOutput = error.stderr?.toString() || error.stdout?.toString() || '';
     const fullError = errorMessage + '\n' + errorOutput;
     
-    // Check for P3009 error (failed migration)
+    // Check for P3009 error (failed migration) - should not happen if we resolved correctly
     if (fullError.includes('P3009') || fullError.includes('failed migration')) {
-      console.log('');
-      console.warn('⚠️  P3009 error detected during migration');
-      
-      // Extract migration name from error
-      const migrationNameMatch = fullError.match(/migration\s+`?(\d+_\w+)`?/i) ||
-                                 fullError.match(/`(\d+_\w+)`/);
-      
-      if (migrationNameMatch && recoveryAttempts < MAX_RECOVERY_ATTEMPTS) {
-        recoveryAttempts++;
-        console.log(`   Recovery attempt ${recoveryAttempts}/${MAX_RECOVERY_ATTEMPTS}`);
-        
-        const resolved = resolveFailedMigration(migrationNameMatch[1]);
-        if (resolved) {
-          console.log('');
-          console.log('   Retrying migrations after resolution...');
-          console.log('');
-          // Recursively retry (with attempt limit)
-          return runMigrations();
-        }
-      }
-      
       console.error('');
-      console.error('❌ Failed to recover from P3009 error');
-      console.error('   Please resolve manually:');
-      if (migrationNameMatch) {
-        console.error(`   npx prisma migrate resolve --rolled-back ${migrationNameMatch[1]}`);
-      } else {
-        console.error('   npx prisma migrate status');
-        console.error('   npx prisma migrate resolve --rolled-back <migration_name>');
-      }
+      console.error('❌ P3009 error still present after resolution attempt');
+      console.error('   This should not happen if resolution was successful');
+      console.error('');
+      console.error('📋 Manual Resolution Required:');
+      console.error('   1. Check status: npx prisma migrate status');
+      console.error('   2. Resolve manually: npx prisma migrate resolve --rolled-back <migration_name>');
+      console.error('   3. Deploy: npx prisma migrate deploy');
+      console.error('');
       process.exit(1);
     }
     
-    // Check for provider mismatch (P3019) or SQLite-specific errors
+    // Check for provider mismatch (P3019) - SQLite to PostgreSQL transition
     if (fullError.includes('P3019') || 
         fullError.includes('migration_lock') || 
-        fullError.includes('provider') ||
-        fullError.includes('does not match') ||
+        (fullError.includes('provider') && fullError.includes('does not match')) ||
         (fullError.includes('sqlite') && fullError.includes('postgresql'))) {
       
       console.log('');
@@ -291,8 +312,6 @@ function runMigrations() {
       console.log('');
       
       try {
-        // Use db push to create schema from current schema.prisma
-        // This is safe for initial setup on empty database
         execSync('npx prisma db push --accept-data-loss --skip-generate', {
           stdio: 'inherit',
           env: process.env,
@@ -301,29 +320,19 @@ function runMigrations() {
         console.log('');
         console.log('✅ Database schema created successfully using db push');
         console.log('');
-        console.log('📝 Note: Future migrations will use migrate deploy');
-        console.log('   For production, consider creating a baseline migration:');
-        console.log('   npx prisma migrate dev --name postgresql_baseline --create-only');
-        console.log('   npx prisma migrate resolve --applied postgresql_baseline');
         return true;
         
       } catch (pushError) {
         console.error('');
         console.error('❌ Failed to push database schema');
         console.error('   Error:', pushError.message || pushError);
-        console.error('');
-        console.error('📋 Troubleshooting:');
-        console.error('   1. Verify DATABASE_URL is correct');
-        console.error('   2. Check database connectivity');
-        console.error('   3. Ensure database is empty or you can accept data loss');
-        console.error('   4. Run manually: npx prisma db push --accept-data-loss');
         process.exit(1);
       }
     }
     
     // Other migration errors
     console.error('');
-    console.error('❌ Migration failed');
+    console.error('❌ Migration deployment failed');
     console.error('   Error:', errorMessage);
     if (errorOutput) {
       console.error('   Details:', errorOutput);
@@ -338,6 +347,55 @@ function runMigrations() {
   }
 }
 
-// Execute migration flow
-runMigrations();
+// Main migration flow - runs ONCE per container start
+// This prevents infinite restart loops on Railway
+console.log('🚀 Starting migration process...');
+console.log('   This will run ONCE per container start');
+console.log('');
 
+// Step 1: Check migration status BEFORE deploying
+const statusCheck = checkMigrationStatus();
+
+// Step 2: Resolve failed migrations if detected
+if (statusCheck.hasFailedMigrations && statusCheck.failedMigrationNames.length > 0) {
+  console.log('⚠️  Failed migrations detected - resolving before deploy');
+  console.log('');
+  
+  // Specifically prioritize resolving migration `20251221091813_init` if it's failed
+  const targetMigration = '20251221091813_init';
+  
+  // Resolve all failed migrations, prioritizing the target migration first
+  const migrationsToResolve = statusCheck.failedMigrationNames.includes(targetMigration)
+    ? [targetMigration, ...statusCheck.failedMigrationNames.filter(m => m !== targetMigration)]
+    : statusCheck.failedMigrationNames;
+  
+  if (migrationsToResolve.length > 0) {
+    
+    let allResolved = true;
+    for (const migrationName of migrationsToResolve) {
+      const resolved = resolveFailedMigration(migrationName);
+      if (!resolved) {
+        console.error(`❌ Failed to resolve migration: ${migrationName}`);
+        console.error('   Please resolve manually:');
+        console.error(`   npx prisma migrate resolve --rolled-back ${migrationName}`);
+        allResolved = false;
+      }
+    }
+    
+    if (!allResolved) {
+      console.error('');
+      console.error('❌ Not all failed migrations could be resolved');
+      console.error('   Exiting to prevent restart loop');
+      process.exit(1);
+    }
+    
+    console.log('✅ All failed migrations resolved');
+    console.log('');
+  }
+}
+
+// Step 3: Deploy migrations
+deployMigrations();
+
+console.log('✅ Migration process completed successfully');
+console.log('');
