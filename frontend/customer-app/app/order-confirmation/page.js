@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle, XCircle, Loader2, ArrowRight, UtensilsCrossed, Package, Clock } from 'lucide-react';
@@ -9,7 +9,7 @@ import { useRestaurantSettings } from '@/lib/useRestaurantSettings';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 
-export default function OrderConfirmationPage() {
+function OrderConfirmationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, token, _hasHydrated } = useAuthStore();
@@ -325,3 +325,17 @@ export default function OrderConfirmationPage() {
   );
 }
 
+export default function OrderConfirmationPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-primary flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-accent animate-spin mx-auto mb-4" />
+          <div className="text-accent text-xl">Loading order details...</div>
+        </div>
+      </div>
+    }>
+      <OrderConfirmationContent />
+    </Suspense>
+  );
+}

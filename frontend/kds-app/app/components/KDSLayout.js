@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, createContext, useContext } from 'react';
+import { useState, createContext, useContext, Suspense } from 'react';
 import { usePathname } from 'next/navigation';
 import KDSSidebar from './KDSSidebar';
 import KDSHeader from './KDSHeader';
@@ -31,7 +31,9 @@ export default function KDSLayout({ children }) {
           <>{children}</>
         ) : (
           <div className="flex h-screen overflow-hidden bg-primary">
-            <KDSSidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+            <Suspense fallback={<div className="w-64 bg-secondary border-r border-accent/20" />}>
+              <KDSSidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+            </Suspense>
             
             <div className="flex-1 flex flex-col overflow-hidden ml-0 lg:ml-64 transition-all duration-300">
               <KDSHeader 
