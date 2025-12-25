@@ -39,6 +39,6 @@
     "nodemon": "^3.0.2"
   },
   "prisma": {
-    "schema": "backend/prisma/schema.prisma"
+    "schema": "backend/prisma/migrations/schema.prisma"
   }
 }
