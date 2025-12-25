@@ -11,7 +11,7 @@ CREATE TABLE "system_settings" (
     "orderPrefix" TEXT NOT NULL DEFAULT 'ORD',
     "autoConfirmOrders" BOOLEAN NOT NULL DEFAULT false,
     "requirePaymentBeforePrep" BOOLEAN NOT NULL DEFAULT false,
-    "updatedAt" DATETIME NOT NULL
+    "updatedAt" TIMESTAMP NOT NULL
 );
 
 -- CreateTable
@@ -19,8 +19,8 @@ CREATE TABLE "DaySession" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "date" TEXT NOT NULL,
     "isClosed" BOOLEAN NOT NULL DEFAULT false,
-    "openedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "closedAt" DATETIME,
+    "openedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "closedAt" TIMESTAMP,
     "closedById" TEXT,
     "totalOrders" INTEGER NOT NULL DEFAULT 0,
     "totalRevenue" REAL NOT NULL DEFAULT 0,
@@ -29,8 +29,8 @@ CREATE TABLE "DaySession" (
     "totalMomo" REAL NOT NULL DEFAULT 0,
     "totalPaystack" REAL NOT NULL DEFAULT 0,
     "notes" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP NOT NULL,
     CONSTRAINT "DaySession_closedById_fkey" FOREIGN KEY ("closedById") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
