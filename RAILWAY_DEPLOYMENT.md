@@ -49,8 +49,9 @@ ADMIN_PHONE=0551796725
 ```
 
 **Notes:**
-- The backend will automatically run `prisma generate` on install
-- The build script runs `prisma migrate deploy` to apply migrations
+- The backend will automatically run `prisma generate` on install (no database connection needed)
+- The build script only runs `prisma generate` (builds work without database)
+- Migrations run automatically at startup via `npm start` (before server starts)
 - Socket.io is configured for Railway proxy compatibility
 - WebSockets work automatically with Railway's proxy
 
@@ -113,8 +114,9 @@ PORT=3003
 ## Important Notes
 
 ### Database Migrations
-- Migrations run automatically during backend build (`npm run build`)
-- If you need to run migrations manually: `npm run migrate:deploy`
+- Migrations run automatically at startup via `npm start` (before server starts)
+- The build process does NOT require a database connection
+- If you need to run migrations manually: `npm run migrate:deploy` or `npm run migrate:runtime`
 
 ### WebSocket Support
 - Socket.io is configured for Railway's proxy
