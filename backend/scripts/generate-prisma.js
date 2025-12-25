@@ -23,7 +23,7 @@ const methods = [
     const prismaPath = path.join(process.cwd(), 'node_modules', '.bin', 'prisma');
     if (fs.existsSync(prismaPath)) {
       console.log('   Using: node_modules/.bin/prisma');
-      execSync(`"${prismaPath}" generate`, { 
+      execSync(`"${prismaPath}" generate --schema=prisma/schema.prisma`, { 
         stdio: 'inherit',
         cwd: process.cwd(),
         env: process.env
@@ -36,7 +36,7 @@ const methods = [
   () => {
     try {
       console.log('   Trying: npx prisma generate');
-      execSync('npx prisma generate', { 
+      execSync('npx prisma generate --schema=prisma/schema.prisma', { 
         stdio: 'inherit',
         cwd: process.cwd(),
         env: process.env
@@ -52,7 +52,7 @@ const methods = [
       const prismaCliPath = path.join(process.cwd(), 'node_modules', 'prisma', 'build', 'index.js');
       if (fs.existsSync(prismaCliPath)) {
         console.log('   Using: node prisma/build/index.js');
-        execSync(`node "${prismaCliPath}" generate`, { 
+        execSync(`node "${prismaCliPath}" generate --schema=prisma/schema.prisma`, { 
           stdio: 'inherit',
           cwd: process.cwd(),
           env: process.env
