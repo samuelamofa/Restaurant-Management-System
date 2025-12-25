@@ -258,7 +258,14 @@ function KDSPageContent() {
         }
       });
       
-      setOrders(grouped);
+      // Create new object references to ensure React detects the change
+      setOrders({
+        PENDING: [...grouped.PENDING],
+        CONFIRMED: [...grouped.CONFIRMED],
+        PREPARING: [...grouped.PREPARING],
+        READY: [...grouped.READY],
+        COMPLETED: [...grouped.COMPLETED],
+      });
       
       // Update order counts separated by type
       if (setOrderCounts) {
@@ -279,6 +286,7 @@ function KDSPageContent() {
           }
         });
       }
+      router.refresh(); // Refresh Next.js router cache
     } catch (error) {
       console.error('Failed to fetch orders:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to load orders';
@@ -287,9 +295,9 @@ function KDSPageContent() {
       if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
         if (apiUrl.includes('localhost')) {
-          toast.error('Cannot connect to backend server. Please ensure the backend is running on http://localhost:5000');
+          toast.error('Unable to connect to the server. Please ensure the backend API is running at http://localhost:5000. If you\'re running locally, start the backend server from the project root.');
         } else {
-          toast.error(`Cannot connect to backend server at ${apiUrl}. Please check your NEXT_PUBLIC_API_URL environment variable.`);
+          toast.error(`Unable to connect to the server at ${apiUrl.replace('/api', '')}. Please check your NEXT_PUBLIC_API_URL environment variable or ensure the backend is running.`);
         }
       } else if (error.response?.status === 401) {
         toast.error('Authentication failed. Please login again.');
@@ -418,10 +426,30 @@ function KDSPageContent() {
     try {
       await api.put(`/orders/${orderId}/status`, { status });
       toast.success('Order status updated');
-      fetchOrders();
+      // Immediately update local state for instant UI feedback
+      setOrders(prev => {
+        const newOrders = { ...prev };
+        Object.keys(newOrders).forEach(key => {
+          const orderIndex = newOrders[key].findIndex(o => o.id === orderId);
+          if (orderIndex !== -1) {
+            const order = newOrders[key][orderIndex];
+            if (order.status !== status) {
+              // Remove from current status
+              newOrders[key] = newOrders[key].filter(o => o.id !== orderId);
+              // Add to new status
+              newOrders[status] = [...(newOrders[status] || []), { ...order, status }];
+            }
+          }
+        });
+        return newOrders;
+      });
+      // Then refetch to ensure data consistency
+      await fetchOrders();
     } catch (error) {
       console.error('Failed to update order status:', error);
       toast.error('Failed to update order status');
+      // Refetch on error to restore correct state
+      fetchOrders();
     }
   };
 

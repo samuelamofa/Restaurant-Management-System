@@ -4,6 +4,7 @@ import { Menu as MenuIcon, Bell, Search, X, ShoppingBag, CheckCircle, Clock, Tra
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 
 const CLEARED_NOTIFICATIONS_KEY = 'admin-cleared-notifications';
@@ -16,6 +17,7 @@ export default function Header({ onMenuClick }) {
   const clearedNotificationsRef = useRef(new Set());
   const dropdownRef = useRef(null);
   const router = useRouter();
+  const { token } = useAuthStore();
 
   // Load cleared notifications from localStorage on mount
   useEffect(() => {
@@ -28,11 +30,16 @@ export default function Header({ onMenuClick }) {
         clearedNotificationsRef.current = clearedSet;
       }
     } catch (error) {
-      console.error('Failed to load cleared notifications:', error);
+      // Silently fail - cleared notifications will default to empty
     }
   }, []);
 
   const fetchNotifications = useCallback(async () => {
+    // Only fetch if authenticated
+    if (!token) {
+      return;
+    }
+    
     try {
       setLoading(true);
       const response = await api.get('/admin/notifications');
@@ -43,20 +50,25 @@ export default function Header({ onMenuClick }) {
         (n) => !clearedNotificationsRef.current.has(n.id)
       );
       setNotifications(filteredNotifications);
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error);
-      // Don't show error toast as this runs in background
-    } finally {
+      } catch (error) {
+        // Silently fail - notifications are non-critical background updates
+        // 401 errors are handled by the API interceptor
+      } finally {
       setLoading(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
+    // Only fetch notifications if authenticated
+    if (!token) {
+      return;
+    }
+    
     fetchNotifications();
     // Refresh notifications every 30 seconds
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [token, fetchNotifications]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -80,13 +92,13 @@ export default function Header({ onMenuClick }) {
     clearedNotificationsRef.current = newCleared;
     
     // Save to localStorage
-    try {
-      localStorage.setItem(CLEARED_NOTIFICATIONS_KEY, JSON.stringify(Array.from(newCleared)));
-    } catch (error) {
-      console.error('Failed to save cleared notifications:', error);
-    }
-    
-    // Remove from current notifications immediately
+      try {
+        localStorage.setItem(CLEARED_NOTIFICATIONS_KEY, JSON.stringify(Array.from(newCleared)));
+      } catch (error) {
+        // Silently fail if localStorage is unavailable
+      }
+      
+      // Remove from current notifications immediately
     setNotifications((current) => current.filter((n) => n.id !== notificationId));
     toast.success('Notification cleared');
   };
@@ -100,13 +112,13 @@ export default function Header({ onMenuClick }) {
     clearedNotificationsRef.current = newCleared;
     
     // Save to localStorage
-    try {
-      localStorage.setItem(CLEARED_NOTIFICATIONS_KEY, JSON.stringify(Array.from(newCleared)));
-    } catch (error) {
-      console.error('Failed to save cleared notifications:', error);
-    }
-    
-    // Clear current notifications immediately
+      try {
+        localStorage.setItem(CLEARED_NOTIFICATIONS_KEY, JSON.stringify(Array.from(newCleared)));
+      } catch (error) {
+        // Silently fail if localStorage is unavailable
+      }
+      
+      // Clear current notifications immediately
     setNotifications([]);
     toast.success('All notifications cleared');
   };

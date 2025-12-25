@@ -71,7 +71,7 @@ router.post(
           paystackKeys.secretKey === 'your-paystack-secret-key' ||
           paystackKeys.secretKey === 'sk_test_your_test_key') {
         // Test mode: Mark order as paid without Paystack
-        console.log('⚠️  Paystack not configured - Using test mode');
+        // Paystack not configured - Using test mode
         
         await prisma.order.update({
           where: { id: orderId },

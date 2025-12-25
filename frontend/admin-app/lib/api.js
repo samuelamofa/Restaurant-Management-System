@@ -10,9 +10,30 @@ const api = axios.create({
   timeout: 10000, // 10 second timeout
 });
 
+// Store reference to get token from Zustand store
+let getTokenFromStore = null;
+
+// Function to set the token getter (called from components)
+export const setTokenGetter = (getter) => {
+  getTokenFromStore = getter;
+};
+
 api.interceptors.request.use(
   (config) => {
-    // Get token from Zustand persisted storage
+    // Try to get token from Zustand store first (more reliable)
+    if (typeof window !== 'undefined' && getTokenFromStore) {
+      try {
+        const token = getTokenFromStore();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+          return config;
+        }
+      } catch (error) {
+        // Silently fail and fall back to localStorage
+      }
+    }
+    
+    // Fallback to reading from localStorage
     if (typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem('admin-auth-storage');
@@ -24,7 +45,7 @@ api.interceptors.request.use(
           }
         }
       } catch (error) {
-        console.error('Error reading token from storage:', error);
+        // Silently fail if localStorage read fails
       }
     }
     return config;
@@ -37,28 +58,14 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Log error details in development
-    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-      console.error('API Error:', {
-        message: error.message,
-        code: error.code,
-        status: error.response?.status,
-        url: error.config?.url,
-        baseURL: error.config?.baseURL,
-        fullURL: error.config?.baseURL + error.config?.url,
-      });
-    }
-
     if (error.response?.status === 401) {
-      // Clear Zustand persisted storage
       if (typeof window !== 'undefined') {
         try {
           localStorage.removeItem('admin-auth-storage');
-          // Also clear any legacy storage
           localStorage.removeItem('token');
           localStorage.removeItem('user');
         } catch (e) {
-          console.error('Error clearing storage:', e);
+          // Silently fail if localStorage is unavailable
         }
         window.location.href = '/login';
       }

@@ -33,7 +33,7 @@ const generateOrderNumber = async (prisma) => {
 
     const sequenceStr = sequence.toString().padStart(5, '0');
     const orderNumber = `${prefix}${sequenceStr}`;
-    console.log('Generated order number:', orderNumber);
+    // Order number generated
     return orderNumber;
   } catch (error) {
     console.error('Error generating order number:', error);

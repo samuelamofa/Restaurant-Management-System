@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Edit, Trash2, X, Image as ImageIcon, Upload, XCircle } from 'lucide-react';
 import api from '@/lib/api';
@@ -24,49 +24,125 @@ export default function MenuManagement() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
-  const { user, token } = useAuthStore();
+  const { token } = useAuthStore();
   const router = useRouter();
   
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-  useEffect(() => {
-    if (!user || !token) {
-      router.push('/login');
+  const fetchData = useCallback(async () => {
+    if (!token) {
       return;
     }
     
-    // Verify user has ADMIN role
-    if (user.role !== 'ADMIN') {
-      toast.error('Access denied. Admin access required.');
-      router.push('/login');
-      return;
-    }
-    
-    fetchData();
-  }, [user, token]);
-
-  const fetchData = async () => {
     try {
       const [categoriesRes, itemsRes] = await Promise.all([
         api.get('/menu/categories'),
         api.get('/menu/items'),
       ]);
-      setCategories(categoriesRes.data.categories);
-      setItems(itemsRes.data.items);
+      // Create new array references to ensure React detects the change
+      setCategories([...categoriesRes.data.categories]);
+      setItems([...itemsRes.data.items]);
+      router.refresh(); // Refresh Next.js router cache
     } catch (error) {
-      console.error('Failed to fetch data:', error);
-      toast.error('Failed to load menu data');
+      // Provide more specific error message
+      const errorMessage = error.response?.data?.error || 
+                          error.message || 
+                          'Failed to load menu data';
+      toast.error(errorMessage);
     }
-  };
+  }, [token, router]);
+
+  useEffect(() => {
+    // AuthGuard handles authentication, just fetch data if we have a token
+    if (token) {
+      fetchData();
+    }
+  }, [token, fetchData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
     try {
+      // Get form values directly from the form elements as a fallback
+      const form = e.target;
+      const nameInput = form.querySelector('#menu-item-name') || form.querySelector('input[name="name"]') || form.querySelector('input[type="text"]');
+      const nameValue = nameInput?.value || formData.name || '';
+      
+      // Validate required fields - use the value from the input directly
+      const trimmedName = (nameValue || formData.name || '').toString().trim();
+      
+      if (!trimmedName || trimmedName.length === 0) {
+        toast.error('Item name is required');
+        // Focus the name input
+        if (nameInput) {
+          nameInput.focus();
+        }
+        return;
+      }
+      
+      if (!formData.categoryId) {
+        toast.error('Please select a category');
+        return;
+      }
+      
+      const priceValue = formData.basePrice;
+      const parsedPrice = parseFloat(priceValue);
+      if (!priceValue || isNaN(parsedPrice) || parsedPrice < 0) {
+        toast.error('Please enter a valid price');
+        return;
+      }
+      
+      // Prepare data for submission - ensure name is definitely included
+      const submitData = {
+        name: trimmedName,
+        categoryId: formData.categoryId,
+        basePrice: parsedPrice,
+        isAvailable: formData.isAvailable !== undefined ? formData.isAvailable : true,
+      };
+      
+      // Double-check name is not empty before proceeding
+      if (!submitData.name || submitData.name.trim().length === 0) {
+        toast.error('Item name is required. Please enter a name.');
+        return;
+      }
+      
+      // Add optional fields only if they have values
+      if (formData.description && formData.description.trim()) {
+        submitData.description = formData.description.trim();
+      }
+      
+      if (formData.image && formData.image.trim()) {
+        // If image is a relative path (from upload), keep it as relative path
+        let imageUrl = formData.image.trim();
+        // Don't convert relative paths to full URLs - backend expects relative paths
+        if (imageUrl.startsWith('/uploads/')) {
+          submitData.image = imageUrl; // Keep as relative path
+        } else {
+          // Validate URL format for external URLs
+          try {
+            new URL(imageUrl);
+            submitData.image = imageUrl;
+          } catch (urlError) {
+            // If it's already a relative path, use it as is
+            if (imageUrl.startsWith('/')) {
+              submitData.image = imageUrl;
+            } else {
+              toast.error('Please enter a valid image URL');
+              return;
+            }
+          }
+        }
+      }
+      
+      if (formData.displayOrder !== undefined && formData.displayOrder !== '') {
+        submitData.displayOrder = parseInt(formData.displayOrder) || 0;
+      }
+      
       if (editingItem) {
-        await api.put(`/menu/items/${editingItem.id}`, formData);
+        await api.put(`/menu/items/${editingItem.id}`, submitData);
         toast.success('Menu item updated');
       } else {
-        await api.post('/menu/items', formData);
+        await api.post('/menu/items', submitData);
         toast.success('Menu item created');
       }
       setShowModal(false);
@@ -85,7 +161,19 @@ export default function MenuManagement() {
       }
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to save menu item');
+      // Show detailed error message
+      let errorMessage = 'Failed to save menu item';
+      if (error.response?.data?.errors) {
+        // Validation errors
+        const validationErrors = error.response.data.errors.map(err => err.msg).join(', ');
+        errorMessage = `Validation error: ${validationErrors}`;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     }
   };
 
@@ -125,7 +213,6 @@ export default function MenuManagement() {
       }
 
       const data = await response.json();
-      console.log('Upload response:', data);
       
       if (!data.url) {
         throw new Error('No URL returned from server');
@@ -134,9 +221,6 @@ export default function MenuManagement() {
       // Construct full URL for preview
       const API_BASE = API_URL.replace('/api', '');
       const fullImageUrl = `${API_BASE}${data.url}`;
-      console.log('Full image URL:', fullImageUrl);
-      console.log('API_URL:', API_URL);
-      console.log('API_BASE:', API_BASE);
       
       setFormData({ ...formData, image: data.url });
       setImagePreview(fullImageUrl);
@@ -145,20 +229,16 @@ export default function MenuManagement() {
       // Test if image is accessible
       const testImg = new Image();
       testImg.onload = () => {
-        console.log('Image test load successful:', fullImageUrl);
         setImageError(false);
       };
-      testImg.onerror = (e) => {
-        console.error('Image test load failed:', fullImageUrl);
-        console.error('Error details:', e);
+      testImg.onerror = () => {
         setImageError(true);
-        toast.error('Image uploaded but preview failed. Check console for details.');
+        toast.error('Image uploaded but preview failed');
       };
       testImg.src = fullImageUrl;
       
       toast.success('Image uploaded successfully');
     } catch (error) {
-      console.error('Upload error:', error);
       toast.error(error.message || 'Failed to upload image');
       setImageError(true);
     } finally {
@@ -171,7 +251,9 @@ export default function MenuManagement() {
       // Optionally delete the file from server
       const filename = formData.image.split('/').pop();
       if (filename && filename.startsWith('menu-')) {
-        api.delete(`/upload/menu-image/${filename}`).catch(console.error);
+        api.delete(`/upload/menu-image/${filename}`).catch(() => {
+          // Silently fail if deletion fails
+        });
       }
     }
     setFormData({ ...formData, image: '' });
@@ -322,13 +404,19 @@ export default function MenuManagement() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Name</label>
+                  <label className="block text-sm font-medium mb-2">Name *</label>
                   <input
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    name="name"
+                    id="menu-item-name"
+                    value={formData.name || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData({ ...formData, name: value });
+                    }}
                     className="w-full px-4 py-2 bg-secondary border border-accent/20 rounded-lg focus:outline-none focus:border-accent"
                     required
+                    autoComplete="off"
                   />
                 </div>
 
@@ -404,13 +492,10 @@ export default function MenuManagement() {
                                   src={imageSrc}
                                   alt="Preview"
                                   className="w-full h-48 object-cover rounded-lg border border-accent/20"
-                                  onError={(e) => {
-                                    console.error('Image preview error - URL:', e.target.src);
-                                    console.error('Image element:', e.target);
+                                  onError={() => {
                                     setImageError(true);
                                   }}
                                   onLoad={() => {
-                                    console.log('Image loaded successfully:', imageSrc);
                                     setImageError(false);
                                   }}
                                 />

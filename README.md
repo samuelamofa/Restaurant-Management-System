@@ -1,6 +1,6 @@
 # De Fusion Flame Kitchen - Restaurant Management System
 
-A complete, production-ready Restaurant Management System with online ordering, POS, Kitchen Display System, and Admin Dashboard.
+A complete Restaurant Management System with online ordering, POS, Kitchen Display System, and Admin Dashboard.
 
 ## 🏢 Restaurant Information
 
@@ -46,62 +46,54 @@ This RMS consists of four main applications:
 └── README.md
 ```
 
-## 🚀 Production System
-
-This is a production-ready Restaurant Management System designed for live operations:
-- PostgreSQL database
-- Live Paystack integration
-- Production-grade security
-- Optimized for performance
-
-**Quick Start:**
-```powershell
-.\setup-production.ps1
-```
-
-📚 **See `PRODUCTION_SETUP.md` for detailed production setup guide**
-
----
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js 18+ 
-- PostgreSQL 14+ database
-- Paystack account with LIVE API keys
+- Database (SQLite for development, PostgreSQL for production)
+- Paystack account with API keys (test keys for development)
 - npm or yarn
 
 ### Installation
-
-#### Option 1: Automated Setup (Recommended)
-
-1. **Run production setup script:**
-```powershell
-.\setup-production.ps1
-```
-
-2. **Configure environment variables:**
-   - Update `backend/.env` with your PostgreSQL connection string
-   - Add your Paystack LIVE keys
-   - Set production URLs
-
-3. **Start all applications:**
-```powershell
-.\start-all.ps1
-```
-
-#### Option 2: Manual Installation
 
 1. **Install all dependencies:**
 ```bash
 npm run install:all
 ```
 
+Or install individually:
+```bash
+npm install
+cd backend && npm install && cd ..
+cd frontend/customer-app && npm install && cd ../..
+cd frontend/pos-app && npm install && cd ../..
+cd frontend/kds-app && npm install && cd ../..
+cd frontend/admin-app && npm install && cd ../..
+```
+
 2. **Set up environment variables:**
 
-Copy `.env.example` files in each directory and fill in your values:
-- Backend: Database URL, JWT secret, Paystack keys
-- Frontend apps: API URL, WebSocket URL
+Create `.env` files in each directory. Copy from `.env.example` files:
+- `backend/.env` - Copy from `backend/.env.example`
+- `frontend/customer-app/.env.local` - Copy from `frontend/customer-app/.env.example`
+- `frontend/pos-app/.env.local` - Copy from `frontend/pos-app/.env.example`
+- `frontend/kds-app/.env.local` - Copy from `frontend/kds-app/.env.example`
+- `frontend/admin-app/.env.local` - Copy from `frontend/admin-app/.env.example`
+
+**Required Backend Environment Variables:**
+- `DATABASE_URL` - Database connection string (SQLite for dev: `file:./prisma/dev.db`)
+- `JWT_SECRET` - Secret key for JWT tokens (generate with: `openssl rand -base64 32`)
+- `PORT` - Server port (default: 5000)
+
+**Optional Backend Variables:**
+- `PAYSTACK_SECRET_KEY` - Paystack secret key
+- `PAYSTACK_PUBLIC_KEY` - Paystack public key
+- `PAYSTACK_WEBHOOK_SECRET` - Paystack webhook secret
+- `FRONTEND_*_URL` - CORS origins for frontend apps
+
+**Frontend Environment Variables:**
+- `NEXT_PUBLIC_API_URL` - Backend API URL (default: `http://localhost:5000/api`)
 
 3. **Set up database:**
 ```bash
@@ -111,6 +103,21 @@ npx prisma generate
 ```
 
 4. **Start development servers:**
+
+**Option 1: Use PowerShell scripts (Windows)**
+```powershell
+# Start all servers at once
+.\start-all.ps1
+
+# Or start individually
+.\start-backend.ps1
+.\start-customer-app.ps1
+.\start-pos-app.ps1
+.\start-kds-app.ps1
+.\start-admin-app.ps1
+```
+
+**Option 2: Manual start (All platforms)**
 
 Terminal 1 - Backend:
 ```bash
@@ -137,19 +144,39 @@ Terminal 5 - Admin App:
 npm run dev:admin
 ```
 
+## 🐛 Troubleshooting
+
+### Backend won't start
+- Ensure `backend/.env` exists with `JWT_SECRET` and `DATABASE_URL`
+- Check if port 5000 is already in use
+- Run `cd backend && npx prisma generate` to regenerate Prisma client
+- Ensure database exists: `cd backend && npx prisma migrate dev`
+
+### Frontend apps won't start
+- Ensure `.env.local` files exist in each frontend app directory
+- Check if ports 3000-3003 are already in use
+- Clear Next.js cache: `rm -rf .next` (or `Remove-Item -Recurse -Force .next` on Windows)
+
+### Database connection errors
+- Verify `DATABASE_URL` in `backend/.env` is correct
+- For SQLite: Ensure path is `file:./prisma/dev.db`
+- Run migrations: `cd backend && npx prisma migrate dev`
+
 ## 🔐 Creating Admin User
 
-After running `setup-production.ps1`, create your admin user:
+Create your admin user:
 ```bash
 cd backend
-ADMIN_EMAIL=your@email.com ADMIN_PASSWORD=strong_password node prisma/seed-production.js
+npm run seed:dev
 ```
+
+This creates test users with the default password: `password123`
 
 ## 💳 Paystack Configuration
 
 1. Get your Paystack API keys from [Paystack Dashboard](https://dashboard.paystack.com)
 2. Add public and secret keys to backend `.env`
-3. Configure webhook URL: `https://your-domain.com/api/webhooks/paystack`
+3. For webhooks, use a service like ngrok in development: `ngrok http 5000`
 
 ## 📱 Application URLs (Development)
 
@@ -199,11 +226,6 @@ ADMIN_EMAIL=your@email.com ADMIN_PASSWORD=strong_password node prisma/seed-produ
 - Sales reports & analytics
 - Staff management
 - Payment transaction logs
-
-## 🚢 Deployment
-
-- **Production Setup:** See `PRODUCTION_SETUP.md` for production deployment guide
-- **General Deployment:** See `DEPLOYMENT.md` for detailed deployment instructions
 
 ## 📝 License
 

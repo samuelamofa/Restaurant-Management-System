@@ -5,9 +5,6 @@ import AdminLayout from './components/AdminLayout';
 export const metadata = {
   title: 'Admin Dashboard - De Fusion Flame Kitchen',
   description: 'Admin Dashboard for De Fusion Flame Kitchen',
-  icons: {
-    icon: '/favicon.ico',
-  },
 };
 
 export default function RootLayout({ children }) {

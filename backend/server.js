@@ -19,6 +19,7 @@ const webhookRoutes = require('./routes/webhooks');
 const settingsRoutes = require('./routes/settings');
 const daySessionRoutes = require('./routes/daySession');
 const uploadRoutes = require('./routes/upload');
+const chatRoutes = require('./routes/chat');
 const { errorHandler } = require('./middleware/errorHandler');
 const { authenticateSocket } = require('./middleware/socketAuth');
 const path = require('path');
@@ -42,8 +43,13 @@ if (!process.env.JWT_SECRET) {
 }
 
 const app = express();
+
+// Railway deployment: Trust proxy for correct IP addresses and protocol
+app.set('trust proxy', 1);
+
 const httpServer = createServer(app);
 
+// Railway deployment: CORS origins from environment variables
 // Filter out undefined values from CORS origins
 const corsOrigins = [
   process.env.FRONTEND_CUSTOMER_URL,
@@ -59,11 +65,18 @@ if (process.env.NODE_ENV === 'production' && corsOrigins.length === 0) {
   console.warn('   Allowing all origins as fallback (NOT RECOMMENDED FOR PRODUCTION)');
 }
 
+// Railway deployment: Socket.io configuration for proxy compatibility
 const io = new Server(httpServer, {
   cors: {
     origin: corsOrigins.length > 0 ? corsOrigins : (process.env.NODE_ENV === 'production' ? false : true), // Strict in production
     credentials: true,
+    methods: ['GET', 'POST'],
   },
+  // Railway proxy compatibility
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  // Trust Railway proxy
+  trustProxy: true,
 });
 
 // Connect to database (async, but don't block server startup)
@@ -125,7 +138,30 @@ const menuLimiter = rateLimit({
   message: 'Too many requests, please try again later.',
 });
 
-// Apply different rate limits
+// More lenient rate limiting for auth endpoints (login, register, etc.)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'production' ? 20 : 50, // Allow more login attempts
+  message: 'Too many authentication attempts, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // Don't count successful logins
+});
+
+// More lenient rate limiting for chat endpoints (messaging)
+// In development, allow much more requests to prevent rate limiting during development
+const chatLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // Much higher limit in dev
+  message: 'Too many messages, please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false, // Count all requests
+});
+
+// Apply different rate limits (order matters - more specific routes first)
+app.use('/api/auth', authLimiter);
+app.use('/api/chat', chatLimiter);
 app.use('/api/menu', menuLimiter);
 app.use('/api/', limiter);
 
@@ -146,6 +182,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/day-session', daySessionRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Socket.io authentication middleware
 io.use(authenticateSocket);
@@ -156,6 +193,8 @@ io.on('connection', (socket) => {
   if (socket.user) {
     const roleRoom = `role:${socket.user.role}`;
     socket.join(roleRoom);
+    // Also join user-specific room for direct messaging
+    socket.join(`user:${socket.user.id}`);
   }
 
   // Kitchen staff joins kitchen room
@@ -166,6 +205,13 @@ io.on('connection', (socket) => {
   // POS staff joins pos room
   socket.on('join:pos', () => {
     socket.join('pos');
+  });
+
+  // User joins their own room (for chat messages)
+  socket.on('join:user', (userId) => {
+    if (socket.user && socket.user.id === userId) {
+      socket.join(`user:${userId}`);
+    }
   });
 });
 
@@ -193,14 +239,44 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
+// Railway deployment: Graceful shutdown handling
+const gracefulShutdown = async (signal) => {
+  console.log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
+  
+  // Stop accepting new connections
+  httpServer.close(() => {
+    console.log('✅ HTTP server closed');
+  });
+  
+  // Close Socket.io connections
+  io.close(() => {
+    console.log('✅ Socket.io server closed');
+  });
+  
+  // Disconnect from database
+  const { disconnectDB } = require('./config/database');
+  await disconnectDB();
+  
+  console.log('✅ Graceful shutdown complete');
+  process.exit(0);
+};
+
+// Handle shutdown signals (Railway sends SIGTERM)
+// Note: database.js also has handlers, but this ensures full server shutdown
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Railway deployment: PORT is automatically assigned by Railway
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 httpServer.listen(PORT, HOST, () => {
-  console.log(`🚀 Server running on ${HOST}:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
   if (process.env.NODE_ENV === 'production') {
     console.log(`🌐 Production mode - Server accessible on port ${PORT}`);
+  } else {
+    console.log(`🌐 Development mode - Server accessible at http://localhost:${PORT}`);
   }
 });
 
@@ -219,4 +295,3 @@ httpServer.on('error', (error) => {
 });
 
 module.exports = { app, io };
-

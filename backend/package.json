@@ -6,13 +6,16 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "prestart": "node scripts/prestart.js",
     "start": "node server.js",
+    "build": "prisma generate && prisma migrate deploy",
     "postinstall": "prisma generate",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "generate": "prisma generate",
-    "seed:production": "node prisma/seed-production.js"
+    "seed": "node prisma/seed-production.js",
+    "seed:production": "node prisma/seed-production.js",
+    "seed:dev": "node prisma/seed-dev.js",
+    "seed:meals": "node prisma/seed-ghanaian-meals.js"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",

@@ -1,5 +1,6 @@
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
+import ChatProvider from './components/ChatProvider';
 
 export const metadata = {
   title: 'De Fusion Flame Kitchen - Online Ordering',
@@ -20,6 +21,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body>
         {children}
+        <ChatProvider />
         <Toaster
           position="top-right"
           toastOptions={{

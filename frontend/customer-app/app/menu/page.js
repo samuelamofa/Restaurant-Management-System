@@ -54,7 +54,8 @@ export default function MenuPage() {
           error.code === 'ERR_NETWORK' || 
           error.message?.includes('Network Error') ||
           error.code === 'ETIMEDOUT') {
-        errorMessage = 'Backend server is not running. Please start it with: cd backend && npm run dev';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+        errorMessage = `Unable to connect to the server. Please ensure the backend API is running at ${apiUrl.replace('/api', '')}. If you're running locally, start the backend server from the project root.`;
       } else if (error.response?.status === 500) {
         errorMessage = 'Server error. Please check backend logs.';
       } else if (error.response?.data?.error) {

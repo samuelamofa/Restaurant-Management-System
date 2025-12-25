@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useChatNotifications } from '@/lib/useChatNotifications';
 
 export default function AdminNav() {
   const pathname = usePathname();
+  const { unreadCount } = useChatNotifications();
 
   return (
     <nav className="bg-secondary border-b border-accent/20 p-4">
@@ -52,6 +54,19 @@ export default function AdminNav() {
             }`}
           >
             Users & Staff
+          </Link>
+          <Link 
+            href="/chat" 
+            className={`hover:text-accent transition-colors relative inline-block ${
+              pathname === '/chat' ? 'text-accent font-semibold' : ''
+            }`}
+          >
+            Customer Support
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-danger text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </Link>
         </div>
       </div>

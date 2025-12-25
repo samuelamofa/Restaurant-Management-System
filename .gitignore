@@ -44,8 +44,10 @@ check-system.ps1
 # Database
 *.db
 *.sqlite
+*.db-journal
 backend/prisma/dev.db
 backend/prisma/*.db
+backend/prisma/prisma/
 
 # Logs
 logs/

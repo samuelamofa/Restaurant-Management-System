@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Edit, Trash2, X } from 'lucide-react';
-import api from '@/lib/api';
+import api, { setTokenGetter } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 
@@ -23,6 +23,9 @@ export default function CategoriesManagement() {
   const router = useRouter();
 
   useEffect(() => {
+    // Set up token getter for API interceptor
+    setTokenGetter(() => useAuthStore.getState().token);
+    
     if (!user || !token) {
       router.push('/login');
       return;
@@ -41,9 +44,10 @@ export default function CategoriesManagement() {
     try {
       setLoading(true);
       const response = await api.get('/menu/categories');
-      setCategories(response.data.categories);
+      // Create a new array reference to ensure React detects the change
+      setCategories([...response.data.categories]);
+      router.refresh(); // Refresh Next.js router cache
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
       toast.error('Failed to load categories');
     } finally {
       setLoading(false);
@@ -53,11 +57,31 @@ export default function CategoriesManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Prepare data - only send image if it's a valid URL or empty
+      const submitData = {
+        name: formData.name.trim(),
+        description: formData.description?.trim() || undefined,
+        displayOrder: formData.displayOrder || 0,
+      };
+      
+      // Only include image if it's a valid URL or empty string
+      if (formData.image && formData.image.trim()) {
+        // Validate URL format
+        try {
+          new URL(formData.image);
+          submitData.image = formData.image.trim();
+        } catch (urlError) {
+          toast.error('Please enter a valid image URL');
+          return;
+        }
+      }
+      
       if (editingCategory) {
-        await api.put(`/menu/categories/${editingCategory.id}`, formData);
+        submitData.isActive = formData.isActive;
+        await api.put(`/menu/categories/${editingCategory.id}`, submitData);
         toast.success('Category updated successfully');
       } else {
-        await api.post('/menu/categories', formData);
+        await api.post('/menu/categories', submitData);
         toast.success('Category created successfully');
       }
       setShowModal(false);
@@ -71,7 +95,19 @@ export default function CategoriesManagement() {
       });
       fetchCategories();
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to save category');
+      // Show detailed error message
+      let errorMessage = 'Failed to save category';
+      if (error.response?.data?.errors) {
+        // Validation errors
+        const validationErrors = error.response.data.errors.map(err => err.msg).join(', ');
+        errorMessage = `Validation error: ${validationErrors}`;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     }
   };
 

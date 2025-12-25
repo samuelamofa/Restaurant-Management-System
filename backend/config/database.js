@@ -28,16 +28,9 @@ const disconnectDB = async () => {
   }
 };
 
-// Handle various shutdown signals
+// Handle beforeExit (for cleanup)
+// Note: SIGTERM and SIGINT are handled in server.js for full graceful shutdown
 process.on('beforeExit', disconnectDB);
-process.on('SIGINT', async () => {
-  await disconnectDB();
-  process.exit(0);
-});
-process.on('SIGTERM', async () => {
-  await disconnectDB();
-  process.exit(0);
-});
 
 // Retry configuration
 const MAX_RETRIES = 5;
@@ -118,4 +111,3 @@ module.exports = {
 };
 // Also set as default for backward compatibility
 module.exports.default = connectDB;
-

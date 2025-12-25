@@ -124,23 +124,19 @@ export default function SettingsPage() {
           localStorage.setItem('restaurantSettings', JSON.stringify(response.data.settings));
           localStorage.setItem('restaurantSettingsUpdated', Date.now().toString());
         } catch (e) {
-          console.error('Failed to save settings to localStorage:', e);
+          // Silently fail if localStorage is unavailable
         }
       }
       
       toast.success('Settings saved successfully');
     } catch (error) {
-      console.error('Failed to save settings:', error);
-      console.error('Error response:', error.response?.data);
-      
-      // Get detailed error message
       let errorMessage = 'Failed to save settings';
+      
       if (error.response?.data?.details) {
         errorMessage = error.response.data.details;
       } else if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
       } else if (error.response?.data?.errors && Array.isArray(error.response.data.errors)) {
-        // Validation errors
         const validationErrors = error.response.data.errors.map(e => e.msg || e.message).join(', ');
         errorMessage = `Validation failed: ${validationErrors}`;
       } else if (error.message) {

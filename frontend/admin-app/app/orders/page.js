@@ -50,14 +50,15 @@ export default function OrdersManagement() {
         );
       }
       
-      setOrders(filteredOrders);
+      // Create a new array reference to ensure React detects the change
+      setOrders([...filteredOrders]);
+      router.refresh(); // Refresh Next.js router cache
     } catch (error) {
-      console.error('Failed to fetch orders:', error);
       toast.error('Failed to load orders');
     } finally {
       setLoading(false);
     }
-  }, [filters, dateFilter, startDate, endDate]);
+  }, [filters, dateFilter, startDate, endDate, router]);
 
   useEffect(() => {
     if (!user || !token) {
@@ -78,12 +79,19 @@ export default function OrdersManagement() {
     try {
       await api.put(`/orders/${orderId}/status`, { status });
       toast.success('Order status updated');
-      fetchOrders();
+      // Immediately update local state for instant UI feedback
+      setOrders(prev => prev.map(order => 
+        order.id === orderId ? { ...order, status } : order
+      ));
       if (selectedOrder?.id === orderId) {
-        setSelectedOrder(null);
+        setSelectedOrder(prev => prev ? { ...prev, status } : null);
       }
+      // Then refetch to ensure data consistency
+      await fetchOrders();
     } catch (error) {
       toast.error('Failed to update order status');
+      // Refetch on error to restore correct state
+      fetchOrders();
     }
   };
 

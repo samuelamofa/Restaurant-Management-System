@@ -12,12 +12,22 @@ if (-not $projectRoot) {
 
 Set-Location $projectRoot
 
-# Check if .env exists
+# Check if Node.js and npm are available
 Write-Host "📋 Checking system prerequisites..." -ForegroundColor Yellow
+try {
+    $nodeVersion = node --version
+    $npmVersion = npm --version
+    Write-Host "✅ Node.js $nodeVersion, npm $npmVersion" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Node.js or npm not found! Please install Node.js first." -ForegroundColor Red
+    exit 1
+}
+
+# Check if .env exists
 $envPath = "backend\.env"
 if (-not (Test-Path $envPath)) {
     Write-Host "❌ Backend .env file not found!" -ForegroundColor Red
-    Write-Host "   Run: .\fix-system.ps1 to set up the system" -ForegroundColor Yellow
+    Write-Host "   Please create backend/.env file with your configuration" -ForegroundColor Yellow
     exit 1
 }
 
@@ -37,6 +47,26 @@ if (-not (Test-Path "backend\node_modules\@prisma\client")) {
     Set-Location "backend"
     npx prisma generate
     Set-Location $projectRoot
+}
+
+# Check if node_modules exist in each app
+Write-Host "📦 Checking dependencies..." -ForegroundColor Yellow
+$apps = @(
+    @{Name="Backend"; Path="backend"},
+    @{Name="Customer App"; Path="frontend\customer-app"},
+    @{Name="POS App"; Path="frontend\pos-app"},
+    @{Name="KDS App"; Path="frontend\kds-app"},
+    @{Name="Admin App"; Path="frontend\admin-app"}
+)
+
+foreach ($app in $apps) {
+    $nodeModulesPath = Join-Path $projectRoot $app.Path "node_modules"
+    if (-not (Test-Path $nodeModulesPath)) {
+        Write-Host "⚠️  $($app.Name) dependencies not found. Installing..." -ForegroundColor Yellow
+        Set-Location (Join-Path $projectRoot $app.Path)
+        npm install
+        Set-Location $projectRoot
+    }
 }
 
 Write-Host "✅ Prerequisites checked" -ForegroundColor Green
@@ -60,19 +90,51 @@ function Start-Server {
         return
     }
     
-    # Start in new PowerShell window
-    $scriptBlock = {
-        param($path, $command, $name)
-        Set-Location $path
-        Write-Host "🚀 $name starting..." -ForegroundColor Green
-        Write-Host "📍 Location: $path" -ForegroundColor Gray
-        Write-Host ""
-        Invoke-Expression $command
+    # Normalize the path - handle both relative and absolute paths
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        $fullPath = $Path
+    } else {
+        $fullPath = Join-Path $projectRoot $Path
     }
     
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "& { $($scriptBlock.ToString()) -path '$Path' -command '$Command' -name '$Name' }"
+    # Resolve to absolute path
+    try {
+        $fullPath = (Resolve-Path $fullPath -ErrorAction Stop).Path
+    } catch {
+        Write-Host "❌ Path not found: $fullPath" -ForegroundColor Red
+        return
+    }
     
-    Start-Sleep -Seconds 2
+    # Create a batch file for more reliable execution
+    $batchFile = [System.IO.Path]::GetTempFileName() + ".bat"
+    $batchContent = @"
+@echo off
+chcp 65001 >nul
+title $Name - Port $Port
+cd /d "$fullPath"
+echo.
+echo ========================================
+echo 🚀 $Name
+echo 📍 Location: $fullPath
+echo 🔌 Port: $Port
+echo ========================================
+echo.
+call $Command
+if errorlevel 1 (
+    echo.
+    echo ❌ Error starting $Name
+    echo Check the error message above for details.
+    echo.
+    pause
+)
+"@
+    
+    [System.IO.File]::WriteAllText($batchFile, $batchContent, [System.Text.Encoding]::Default)
+    
+    # Start in new cmd window
+    Start-Process cmd.exe -ArgumentList "/k", "`"$batchFile`""
+    
+    Start-Sleep -Seconds 3
 }
 
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
@@ -81,19 +143,19 @@ Write-Host "━━━━━━━━━━━━━━━━━━━━━━�
 Write-Host ""
 
 # Start Backend (Port 5000)
-Start-Server -Name "Backend API" -Path "$projectRoot\backend" -Command "npm run dev" -Port 5000
+Start-Server -Name "Backend API" -Path (Join-Path $projectRoot "backend") -Command "npm run dev" -Port 5000
 
 # Start Customer App (Port 3000)
-Start-Server -Name "Customer App" -Path "$projectRoot\frontend\customer-app" -Command "npm run dev" -Port 3000
+Start-Server -Name "Customer App" -Path (Join-Path $projectRoot "frontend\customer-app") -Command "npm run dev" -Port 3000
 
 # Start POS App (Port 3001)
-Start-Server -Name "POS App" -Path "$projectRoot\frontend\pos-app" -Command "npm run dev" -Port 3001
+Start-Server -Name "POS App" -Path (Join-Path $projectRoot "frontend\pos-app") -Command "npm run dev" -Port 3001
 
 # Start KDS App (Port 3002)
-Start-Server -Name "KDS App" -Path "$projectRoot\frontend\kds-app" -Command "npm run dev" -Port 3002
+Start-Server -Name "KDS App" -Path (Join-Path $projectRoot "frontend\kds-app") -Command "npm run dev" -Port 3002
 
 # Start Admin App (Port 3003)
-Start-Server -Name "Admin App" -Path "$projectRoot\frontend\admin-app" -Command "npm run dev" -Port 3003
+Start-Server -Name "Admin App" -Path (Join-Path $projectRoot "frontend\admin-app") -Command "npm run dev" -Port 3003
 
 Write-Host ""
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan

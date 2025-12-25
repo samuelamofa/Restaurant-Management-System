@@ -9,8 +9,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Note: For local development with SQLite, change provider to "sqlite"
-// For production (Railway), use PostgreSQL
+// Railway deployment: Uses PostgreSQL via DATABASE_URL
+// For local development with SQLite, change provider to "sqlite" and use file:./dev.db
 // UserRole: CUSTOMER, RECEPTIONIST, CASHIER, KITCHEN_STAFF, ADMIN
 // OrderStatus: PENDING, CONFIRMED, PREPARING, READY, COMPLETED, CANCELLED
 // PaymentMethod: CASH, CARD, MOMO, PAYSTACK
@@ -228,6 +228,7 @@ model SystemSettings {
   restaurantAddress String?
   restaurantPhone String?
   restaurantEmail String?
+  restaurantLogo  String?  // Restaurant logo image URL/path
   taxRate         Float    @default(0.05) // 5% tax
   currency        String   @default("GHS")
   currencySymbol  String   @default("₵")
@@ -264,5 +265,41 @@ model DaySession {
   @@index([date])
   @@index([isClosed])
   @@index([closedAt])
+}
+
+model Chat {
+  id            String        @id @default(uuid())
+  customerId    String?       // Customer who initiated the chat
+  customerName  String?       // Customer name (for anonymous chats)
+  customerEmail String?       // Customer email (for anonymous chats)
+  status        String        @default("ACTIVE") // ACTIVE, RESOLVED, CLOSED
+  lastMessageAt DateTime?     // Timestamp of last message
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  messages      ChatMessage[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([lastMessageAt])
+  @@index([createdAt])
+}
+
+model ChatMessage {
+  id          String   @id @default(uuid())
+  chatId      String
+  senderId    String?  // User ID if sent by authenticated user (admin/customer)
+  senderRole  String   // CUSTOMER, ADMIN
+  senderName  String   // Name of sender
+  message     String
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  chat        Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@index([isRead])
 }
 

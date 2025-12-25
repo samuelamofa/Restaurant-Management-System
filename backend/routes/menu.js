@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, validationResult, query } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 const { prisma } = require('../config/database');
 const { authenticate, authorize } = require('../middleware/auth');
 
@@ -108,13 +108,22 @@ router.post(
   [
     body('name').trim().notEmpty().withMessage('Category name is required'),
     body('description').optional().trim(),
-    body('image').optional().isURL(),
-    body('displayOrder').optional().isInt(),
+    body('image').optional().custom((value) => {
+      if (!value || value === '') return true; // Allow empty string
+      try {
+        new URL(value);
+        return true;
+      } catch {
+        throw new Error('Image must be a valid URL');
+      }
+    }),
+    body('displayOrder').optional().isInt({ min: 0 }).withMessage('Display order must be a non-negative integer'),
   ],
   async (req, res) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.error('Validation errors:', errors.array());
         return res.status(400).json({ errors: errors.array() });
       }
 
@@ -122,17 +131,19 @@ router.post(
 
       const category = await prisma.category.create({
         data: {
-          name,
-          description,
-          image,
-          displayOrder: displayOrder || 0,
+          name: name.trim(),
+          description: description?.trim() || null,
+          image: image?.trim() || null,
+          displayOrder: displayOrder ? parseInt(displayOrder) : 0,
         },
       });
 
       res.status(201).json({ message: 'Category created successfully', category });
     } catch (error) {
-      console.error('Create category error:', error);
-      res.status(500).json({ error: 'Failed to create category' });
+      res.status(500).json({ 
+        error: 'Failed to create category',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   }
 );
@@ -231,10 +242,26 @@ router.post(
   [
     body('name').trim().notEmpty().withMessage('Item name is required'),
     body('categoryId').notEmpty().withMessage('Category ID is required'),
-    body('basePrice').isFloat({ min: 0 }).withMessage('Base price must be a positive number'),
+    body('basePrice').custom((value) => {
+      const num = parseFloat(value);
+      if (isNaN(num) || num < 0) {
+        throw new Error('Base price must be a positive number');
+      }
+      return true;
+    }),
     body('description').optional().trim(),
-    body('image').optional().isURL(),
-    body('displayOrder').optional().isInt(),
+    body('image').optional().custom((value) => {
+      if (!value || value === '') return true; // Allow empty string
+      // Allow both URLs and relative paths
+      if (value.startsWith('/')) return true; // Relative path
+      try {
+        new URL(value);
+        return true;
+      } catch {
+        throw new Error('Image must be a valid URL or relative path');
+      }
+    }),
+    body('displayOrder').optional().isInt({ min: 0 }).withMessage('Display order must be a non-negative integer'),
   ],
   async (req, res) => {
     try {
@@ -245,14 +272,23 @@ router.post(
 
       const { name, description, image, categoryId, basePrice, displayOrder, variants, addons } = req.body;
 
+      // Verify category exists
+      const category = await prisma.category.findUnique({
+        where: { id: categoryId },
+      });
+
+      if (!category) {
+        return res.status(400).json({ error: 'Category not found' });
+      }
+
       const item = await prisma.menuItem.create({
         data: {
-          name,
-          description,
-          image,
+          name: name.trim(),
+          description: description?.trim() || null,
+          image: image?.trim() || null,
           categoryId,
           basePrice: parseFloat(basePrice),
-          displayOrder: displayOrder || 0,
+          displayOrder: displayOrder ? parseInt(displayOrder) : 0,
           variants: variants
             ? {
                 create: variants.map((v) => ({
@@ -279,8 +315,10 @@ router.post(
 
       res.status(201).json({ message: 'Menu item created successfully', item });
     } catch (error) {
-      console.error('Create menu item error:', error);
-      res.status(500).json({ error: 'Failed to create menu item' });
+      res.status(500).json({ 
+        error: 'Failed to create menu item',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   }
 );

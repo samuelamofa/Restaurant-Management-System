@@ -46,8 +46,12 @@ export default function Receipt({ order, cart, totals, orderType, tableNumber, p
         <div className="text-center mb-4 border-b-2 border-black pb-2">
           <h1 className="text-lg font-bold uppercase">{settings.restaurantName || 'De Fusion Flame'}</h1>
           <p className="text-xs">Kitchen & Restaurant</p>
-          <p className="text-xs mt-1">Tel: +233 XX XXX XXXX</p>
-          <p className="text-xs">Email: info@defusionflame.com</p>
+          {settings.restaurantPhone && (
+            <p className="text-xs mt-1">Tel: {settings.restaurantPhone}</p>
+          )}
+          {settings.restaurantEmail && (
+            <p className="text-xs">Email: {settings.restaurantEmail}</p>
+          )}
         </div>
 
         {/* Order Info */}

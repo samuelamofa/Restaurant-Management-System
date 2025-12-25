@@ -11,17 +11,20 @@ import {
   Users, 
   Menu,
   Settings,
+  MessageCircle,
   X,
   LogOut
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
+import { useChatNotifications } from '@/lib/useChatNotifications';
 
 export default function Sidebar({ isOpen, setIsOpen }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, token, logout } = useAuthStore();
   const [restaurantName, setRestaurantName] = useState('De Fusion Flame');
+  const { unreadCount } = useChatNotifications();
 
   const menuItems = [
     {
@@ -50,6 +53,11 @@ export default function Sidebar({ isOpen, setIsOpen }) {
       icon: Users,
     },
     {
+      name: 'Customer Support',
+      href: '/chat',
+      icon: MessageCircle,
+    },
+    {
       name: 'Settings',
       href: '/settings',
       icon: Settings,
@@ -58,6 +66,11 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
   // Fetch restaurant name from settings
   useEffect(() => {
+    // Only fetch if authenticated
+    if (!token) {
+      return;
+    }
+    
     const fetchRestaurantName = async () => {
       try {
         const response = await api.get('/settings');
@@ -65,8 +78,8 @@ export default function Sidebar({ isOpen, setIsOpen }) {
           setRestaurantName(response.data.settings.restaurantName);
         }
       } catch (error) {
-        console.error('Failed to fetch restaurant name:', error);
-        // Keep default name on error
+        // Silently fail - default name will be used
+        // 401 errors are handled by the API interceptor
       }
     };
 
@@ -75,7 +88,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
     // Refresh restaurant name every 30 seconds to catch updates
     const interval = setInterval(fetchRestaurantName, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [token]);
 
   // Listen for settings updates via custom event
   useEffect(() => {
@@ -158,14 +171,19 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                     <Link
                       href={item.href}
                       onClick={() => setIsOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 relative ${
                         isActive
                           ? 'bg-accent text-primary shadow-lg'
                           : 'text-text/70 hover:bg-accent/10 hover:text-accent'
                       }`}
                     >
                       <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : ''}`} />
-                      <span className="font-medium">{item.name}</span>
+                      <span className="font-medium flex-1">{item.name}</span>
+                      {item.href === '/chat' && unreadCount > 0 && (
+                        <span className="bg-danger text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );

@@ -4,19 +4,23 @@ const path = require('path');
 const nextConfig = {
   reactStrictMode: true,
   webpack: (config, { isServer }) => {
-    // Ensure webpack resolves modules from the local node_modules first
+    // Fix for workspace dependency resolution
+    const rootNodeModules = path.resolve(__dirname, '../../node_modules');
     const localNodeModules = path.resolve(__dirname, 'node_modules');
+    
     config.resolve.modules = [
       localNodeModules,
+      rootNodeModules,
       'node_modules',
     ];
     
-    // Prevent resolving from parent directories
+    // Ensure proper module resolution for workspace packages
     config.resolve.symlinks = false;
     
-    // Ignore parent node_modules to avoid workspace conflicts
+    // Explicit alias for problematic workspace packages
     config.resolve.alias = {
       ...config.resolve.alias,
+      '@nodelib/fs.walk': path.resolve(rootNodeModules, '@nodelib/fs.walk'),
     };
     
     // Fix for socket.io-client nested dependencies
@@ -33,6 +37,8 @@ const nextConfig = {
   },
   // Transpile packages that might have issues
   transpilePackages: [],
+  // Railway deployment: Output standalone for better performance
+  output: 'standalone',
 };
 
 module.exports = nextConfig;

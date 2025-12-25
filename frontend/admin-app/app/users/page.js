@@ -44,9 +44,10 @@ export default function UsersManagement() {
       setLoading(true);
       const params = filterRole ? `?role=${filterRole}` : '';
       const response = await api.get(`/admin/users${params}`);
-      setUsers(response.data.users);
+      // Create a new array reference to ensure React detects the change
+      setUsers([...response.data.users]);
+      router.refresh(); // Refresh Next.js router cache
     } catch (error) {
-      console.error('Failed to fetch users:', error);
       toast.error('Failed to load users');
     } finally {
       setLoading(false);

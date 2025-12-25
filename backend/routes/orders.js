@@ -47,10 +47,8 @@ router.post(
           });
         }
       } catch (daySessionError) {
-        // If DaySession table doesn't exist or query fails, log and continue
+        // If DaySession table doesn't exist or query fails, continue
         // This allows orders to be created even if DaySession hasn't been set up yet
-        console.warn('DaySession check failed (table may not exist yet):', daySessionError.message);
-        // Continue with order creation - treat as open day
       }
 
       const { orderType, items, tableNumber, notes, discount = 0, deliveryAddress, contactPhone } = req.body;
@@ -147,8 +145,7 @@ router.post(
         });
         taxRate = settings.taxRate || 0.05;
       } catch (settingsError) {
-        console.warn('Could not fetch/create system settings, using default tax rate:', settingsError.message);
-        // Continue with default tax rate
+        // Could not fetch/create system settings - using default tax rate
       }
       
       const tax = subtotal * taxRate;
@@ -207,11 +204,6 @@ router.post(
         },
       };
 
-      console.log('Creating order with data:', JSON.stringify({
-        ...orderData,
-        items: { create: orderData.items.create.map(i => ({ ...i, addons: i.addons ? '...' : undefined })) }
-      }, null, 2));
-
       // Create order
       let order;
       try {
@@ -243,10 +235,7 @@ router.post(
             },
           },
         });
-        console.log('Order created successfully:', order.id, order.orderNumber);
       } catch (createError) {
-        console.error('Prisma create error:', createError);
-        console.error('Order data that failed:', JSON.stringify(orderData, null, 2));
         throw createError; // Re-throw to be caught by outer catch
       }
 
@@ -269,15 +258,12 @@ router.post(
 
       res.status(201).json({ message: 'Order created successfully', order });
     } catch (error) {
-      console.error('========== CREATE ORDER ERROR ==========');
-      console.error('Error:', error);
-      console.error('Error name:', error.name);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      console.error('Request body:', JSON.stringify(req.body, null, 2));
-      console.error('User:', req.user?.id, req.user?.role);
-      console.error('========================================');
+      console.error('Create order error:', error.message, {
+        code: error.code,
+        userId: req.user?.id,
+        role: req.user?.role,
+        ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
+      });
       
       // Return more specific error messages
       if (error.code === 'P2002') {
@@ -463,7 +449,7 @@ router.get('/:id', authenticate, async (req, res) => {
 
     res.json({ order });
   } catch (error) {
-    console.error('Get order error:', error);
+    console.error('Get order error:', error.message);
     res.status(500).json({ error: 'Failed to fetch order' });
   }
 });
@@ -555,7 +541,7 @@ router.put(
 
       res.json({ message: 'Order status updated successfully', order });
     } catch (error) {
-      console.error('Update order status error:', error);
+      console.error('Update order status error:', error.message);
       res.status(500).json({ error: 'Failed to update order status' });
     }
   }

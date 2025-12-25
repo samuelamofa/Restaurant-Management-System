@@ -37,9 +37,10 @@ export default function Home() {
           error.code === 'ERR_NETWORK' || 
           error.message?.includes('Network Error') ||
           error.code === 'ETIMEDOUT') {
-        setError('Backend server is not running. Please start it with: cd backend && npm run dev');
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+        setError(`Unable to connect to the server. Please ensure the backend API is running at ${apiUrl.replace('/api', '')}. If you're running locally, start the backend server from the project root.`);
       } else {
-        setError('Failed to load menu. Please try again later.');
+        setError('Failed to load menu. Please try again later or refresh the page.');
       }
     } finally {
       setLoading(false);
@@ -326,7 +327,7 @@ export default function Home() {
       {!loading && error && (
         <section className="container mx-auto px-4 py-20">
           <div className="bg-danger/20 border border-danger/50 rounded-2xl p-8 text-center max-w-2xl mx-auto">
-            <h2 className="text-2xl font-bold mb-4 text-danger">Unable to Load Menu</h2>
+            <h2 className="text-2xl font-bold mb-4 text-danger">Connection Error</h2>
             <p className="text-text/80 mb-6">{error}</p>
             <button
               onClick={fetchCategories}

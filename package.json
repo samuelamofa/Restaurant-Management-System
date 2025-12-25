@@ -8,13 +8,13 @@
     "frontend/*"
   ],
   "scripts": {
-    "start": "npm run start --workspace=rms-backend",
+    "start": "cd backend && npm start",
     "dev:backend": "cd backend && npm run dev",
     "dev:customer": "cd frontend/customer-app && npm run dev",
     "dev:pos": "cd frontend/pos-app && npm run dev",
     "dev:kds": "cd frontend/kds-app && npm run dev",
     "dev:admin": "cd frontend/admin-app && npm run dev",
-    "install:all": "npm install && cd backend && npm install && cd ../frontend/customer-app && npm install && cd ../pos-app && npm install && cd ../kds-app && npm install && cd ../admin-app && npm install",
+    "install:all": "npm install",
     "build:customer": "cd frontend/customer-app && npm run build",
     "build:pos": "cd frontend/pos-app && npm run build",
     "build:kds": "cd frontend/kds-app && npm run build",
@@ -29,6 +29,11 @@
   "author": "De Fusion Flame Kitchen",
   "license": "ISC",
   "devDependencies": {
-    "debug": "^4.4.3"
+    "@nodelib/fs.walk": "^3.0.1",
+    "autoprefixer": "^10.4.23",
+    "debug": "^4.4.3",
+    "fast-glob": "^3.3.3",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18"
   }
 }

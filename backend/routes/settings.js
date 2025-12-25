@@ -38,6 +38,7 @@ router.get('/', async (req, res) => {
     restaurantAddress: process.env.RESTAURANT_ADDRESS || null,
     restaurantPhone: process.env.RESTAURANT_PHONE || null,
     restaurantEmail: null,
+    restaurantLogo: null,
     taxRate: 0.05,
     currency: 'GHS',
     currencySymbol: '₵',
@@ -182,6 +183,7 @@ router.put(
     body('restaurantAddress').optional({ checkFalsy: true }).trim(),
     body('restaurantPhone').optional({ checkFalsy: true }).trim(),
     body('restaurantEmail').optional({ checkFalsy: true }).isEmail().withMessage('Invalid email format'),
+    body('restaurantLogo').optional({ checkFalsy: true }).trim(),
     body('taxRate').optional().isFloat({ min: 0, max: 1 }).withMessage('Tax rate must be between 0 and 1'),
     body('currency').optional({ checkFalsy: true }).trim().notEmpty().withMessage('Currency cannot be empty'),
     body('currencySymbol').optional({ checkFalsy: true }).trim().notEmpty().withMessage('Currency symbol cannot be empty'),
@@ -196,7 +198,6 @@ router.put(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        console.error('Validation errors:', errors.array());
         return res.status(400).json({ 
           error: 'Validation failed',
           errors: errors.array(),
@@ -210,6 +211,7 @@ router.put(
         'restaurantAddress',
         'restaurantPhone',
         'restaurantEmail',
+        'restaurantLogo',
         'taxRate',
         'currency',
         'currencySymbol',
@@ -227,9 +229,6 @@ router.put(
         }
       });
 
-      // Log the update data for debugging
-      console.log('Updating settings with data:', updateData);
-
       // Check if settings exist, if not create them
       let settings;
       try {
@@ -238,7 +237,6 @@ router.put(
         });
 
         if (!settings) {
-          console.log('Settings not found, creating new settings record');
           settings = await prisma.systemSettings.create({
             data: {
               id: 'system',
@@ -246,6 +244,7 @@ router.put(
               restaurantAddress: process.env.RESTAURANT_ADDRESS || null,
               restaurantPhone: process.env.RESTAURANT_PHONE || null,
               restaurantEmail: null,
+              restaurantLogo: null,
               taxRate: 0.05,
               currency: 'GHS',
               currencySymbol: '₵',
@@ -258,14 +257,11 @@ router.put(
               ...updateData,
             },
           });
-          console.log('Created new settings:', settings);
         } else {
-          console.log('Updating existing settings. Current restaurantName:', settings.restaurantName);
           settings = await prisma.systemSettings.update({
             where: { id: 'system' },
             data: updateData,
           });
-          console.log('Updated settings. New restaurantName:', settings.restaurantName);
         }
       } catch (dbError) {
         const errorMsg = dbError.message || '';
@@ -295,14 +291,6 @@ router.put(
 
       res.json({ message: 'Settings updated successfully', settings });
     } catch (error) {
-      console.error('Update settings error:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        meta: error.meta,
-        stack: error.stack
-      });
-      
       // Provide more detailed error messages
       let errorMessage = 'Failed to update settings';
       if (error.code === 'P2002') {

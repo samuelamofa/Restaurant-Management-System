@@ -36,17 +36,15 @@ export default function LoginPage() {
       toast.success('Login successful');
       router.push('/');
     } catch (error) {
-      console.error('Login error:', error);
-      
       // Handle different error types
       if (!error.response) {
         // Network error - backend not running
         if (error.code === 'ECONNREFUSED' || error.message?.includes('Network Error') || error.code === 'ERR_NETWORK') {
           const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
           if (apiUrl.includes('localhost')) {
-            toast.error('Cannot connect to backend server. Please ensure the backend is running on port 5000. Start it with: cd backend && npm run dev');
+            toast.error('Unable to connect to the server. Please ensure the backend API is running at http://localhost:5000. If you\'re running locally, start the backend server from the project root.');
           } else {
-            toast.error(`Cannot connect to backend server at ${apiUrl}. Please check your NEXT_PUBLIC_API_URL environment variable.`);
+            toast.error(`Unable to connect to the server at ${apiUrl.replace('/api', '')}. Please check your NEXT_PUBLIC_API_URL environment variable or ensure the backend is running.`);
           }
         } else {
           toast.error('Network error: ' + (error.message || 'Unable to connect to server'));

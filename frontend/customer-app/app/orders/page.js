@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ShoppingCart, User, Menu as MenuIcon, X, UtensilsCrossed, Package } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, User, Menu as MenuIcon, X, UtensilsCrossed, Package, RefreshCw } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { useCartStore } from '@/lib/store';
 import { useRestaurantSettings } from '@/lib/useRestaurantSettings';
@@ -36,8 +36,11 @@ export default function OrdersPage() {
 
   const fetchOrders = async () => {
     try {
+      setLoading(true);
       const response = await api.get('/orders');
-      setOrders(response.data.orders);
+      // Create a new array reference to ensure React detects the change
+      setOrders([...response.data.orders]);
+      router.refresh(); // Refresh Next.js router cache
     } catch (error) {
       console.error('Failed to fetch orders:', error);
       toast.error('Failed to load orders');
@@ -202,10 +205,18 @@ export default function OrdersPage() {
             <div className="w-12 h-12 bg-accent/20 rounded-xl flex items-center justify-center">
               <Package className="w-6 h-6 text-accent" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-accent mb-2 px-4 sm:px-0">My Orders</h1>
               <p className="text-base sm:text-lg text-text/60 px-4 sm:px-0">View and track your order history</p>
             </div>
+            <button
+              onClick={fetchOrders}
+              disabled={loading}
+              className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
           </div>
         </div>
       </div>

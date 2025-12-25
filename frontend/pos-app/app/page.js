@@ -3,7 +3,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShoppingCart, Plus, Minus, Trash2, CreditCard, DollarSign, Smartphone } from 'lucide-react';
-import api from '@/lib/api';
+import api, { setTokenGetter } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { CartContext } from './components/POSLayout';
 import Receipt from './components/Receipt';
@@ -37,6 +37,7 @@ export default function POSPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [menuLoading, setMenuLoading] = useState(false);
   
   const router = useRouter();
   const { user, token, _hasHydrated } = useAuthStore();
@@ -45,6 +46,8 @@ export default function POSPage() {
   // Ensure component is mounted on client side
   useEffect(() => {
     setIsMounted(true);
+    // Set up token getter for API interceptor
+    setTokenGetter(() => useAuthStore.getState().token);
   }, []);
 
   // Force hydration after a delay if it hasn't happened
@@ -85,18 +88,23 @@ export default function POSPage() {
   }, [cart, setCartCount]);
 
   const fetchMenu = async () => {
+    setMenuLoading(true);
     try {
       // Fetch categories
       const categoriesRes = await api.get('/menu/categories');
-      setCategories(categoriesRes.data.categories);
+      setCategories(categoriesRes.data.categories || []);
       
       // Fetch all menu items
       const allItemsRes = await api.get('/menu/items');
-      setAllMenuItems(allItemsRes.data.items);
-      setMenuItems(allItemsRes.data.items);
+      const items = allItemsRes.data.items || [];
+      
+      setAllMenuItems(items);
+      setMenuItems(items);
     } catch (error) {
-      console.error('Failed to fetch menu:', error);
-      toast.error('Failed to load menu');
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to load menu';
+      toast.error(errorMessage);
+    } finally {
+      setMenuLoading(false);
     }
   };
 
@@ -426,34 +434,64 @@ export default function POSPage() {
 
           {/* Menu Items Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto flex-1 pb-4">
-            {filteredMenuItems.length === 0 ? (
+            {menuLoading ? (
               <div className="col-span-full card text-center py-12">
-                <p className="text-text/60 text-lg">
-                  {searchQuery ? 'No items found matching your search' : 'No items available'}
-                </p>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent mx-auto mb-4"></div>
+                <p className="text-text/60 text-lg">Loading menu...</p>
               </div>
-            ) : (
-              filteredMenuItems
-                .filter((item) => item.isAvailable)
-                .map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => addToCart(item)}
-                    className="card text-left hover:scale-105 transition-all cursor-pointer group"
-                  >
-                    <img
-                      src={getItemImage(item)}
-                      alt={item.name}
-                      className="w-full h-32 object-cover rounded-lg mb-3 group-hover:opacity-90 transition-opacity"
-                      onError={(e) => {
-                        e.target.src = `https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop&q=80`;
-                      }}
-                    />
-                    <h3 className="font-bold text-base mb-1 line-clamp-1">{item.name}</h3>
-                    <p className="text-accent font-bold text-lg">₵{item.basePrice.toFixed(2)}</p>
-                  </button>
-                ))
-            )}
+            ) : (() => {
+              const availableItems = filteredMenuItems.filter((item) => item.isAvailable);
+              const totalItems = filteredMenuItems.length;
+              
+              if (totalItems === 0) {
+                return (
+                  <div className="col-span-full card text-center py-12">
+                    <p className="text-text/60 text-lg">
+                      {searchQuery 
+                        ? 'No items found matching your search' 
+                        : allMenuItems.length === 0
+                          ? 'No menu items in database. Please add items via Admin panel.'
+                          : 'No items match the current filter'}
+                    </p>
+                    {allMenuItems.length > 0 && allMenuItems.filter(item => !item.isAvailable).length > 0 && (
+                      <p className="text-text/40 text-sm mt-2">
+                        {allMenuItems.filter(item => !item.isAvailable).length} item(s) are currently unavailable
+                      </p>
+                    )}
+                  </div>
+                );
+              }
+              
+              if (availableItems.length === 0 && totalItems > 0) {
+                return (
+                  <div className="col-span-full card text-center py-12">
+                    <p className="text-text/60 text-lg">No available items</p>
+                    <p className="text-text/40 text-sm mt-2">
+                      {totalItems} item(s) found but all are currently unavailable
+                    </p>
+                  </div>
+                );
+              }
+              
+              return availableItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => addToCart(item)}
+                  className="card text-left hover:scale-105 transition-all cursor-pointer group"
+                >
+                  <img
+                    src={getItemImage(item)}
+                    alt={item.name}
+                    className="w-full h-32 object-cover rounded-lg mb-3 group-hover:opacity-90 transition-opacity"
+                    onError={(e) => {
+                      e.target.src = `https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=200&fit=crop&q=80`;
+                    }}
+                  />
+                  <h3 className="font-bold text-base mb-1 line-clamp-1">{item.name}</h3>
+                  <p className="text-accent font-bold text-lg">₵{item.basePrice.toFixed(2)}</p>
+                </button>
+              ));
+            })()}
           </div>
         </div>
 

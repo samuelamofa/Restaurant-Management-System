@@ -7,12 +7,33 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 5000, // 5 second timeout to prevent hanging
+  timeout: 10000, // 10 second timeout
 });
+
+// Store reference to get token from Zustand store
+let getTokenFromStore = null;
+
+// Function to set the token getter (called from components)
+export const setTokenGetter = (getter) => {
+  getTokenFromStore = getter;
+};
 
 api.interceptors.request.use(
   (config) => {
-    // Get token from Zustand persisted storage
+    // Try to get token from Zustand store first (more reliable)
+    if (typeof window !== 'undefined' && getTokenFromStore) {
+      try {
+        const token = getTokenFromStore();
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+          return config;
+        }
+      } catch (error) {
+        console.error('Error reading token from store:', error);
+      }
+    }
+    
+    // Fallback to reading from localStorage
     if (typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem('pos-auth-storage');

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { BarChart3, DollarSign, ShoppingBag, Users, TrendingUp, Calendar, Filter } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
@@ -10,14 +9,23 @@ import toast from 'react-hot-toast';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [dateFilter, setDateFilter] = useState('today'); // 'today', 'all', 'custom'
+  const [loading, setLoading] = useState(false); // Start as false, will be set to true when fetching
+  const [mounted, setMounted] = useState(false);
+  const [dateFilter, setDateFilter] = useState('today');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const { user, token, _hasHydrated } = useAuthStore();
-  const router = useRouter();
+  const { user, token } = useAuthStore();
+
+  // Track client-side mounting to avoid SSR mismatches
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const fetchDashboardData = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -35,73 +43,41 @@ export default function AdminDashboard() {
       const response = await api.get(`/admin/dashboard?${params.toString()}`);
       setStats(response.data);
     } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
-      toast.error('Failed to load dashboard data');
+      if (error.response?.status !== 401) {
+        toast.error('Failed to load dashboard data');
+      }
     } finally {
       setLoading(false);
     }
-  }, [dateFilter, startDate, endDate]);
+  }, [dateFilter, startDate, endDate, token]);
 
-  // Ensure hydration happens - Zustand persist should handle this, but add fallback
+  // Fetch data when authenticated (auth check handled by AuthGuard in layout)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const timer = setTimeout(() => {
-        const state = useAuthStore.getState();
-        if (!state._hasHydrated) {
-          useAuthStore.setState({ _hasHydrated: true });
-        }
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Wait for Zustand to hydrate from localStorage before checking auth
-    if (!_hasHydrated) {
-      return;
-    }
-
-    if (!user || !token) {
-      router.push('/login');
-      return;
-    }
-    
-    // Verify user has ADMIN role
-    if (user.role !== 'ADMIN') {
-      toast.error('Access denied. Admin access required.');
-      router.push('/login');
+    if (!mounted || !user || !token) {
       return;
     }
     
     fetchDashboardData();
-  }, [user, token, _hasHydrated, router, fetchDashboardData]);
+  }, [mounted, user, token, fetchDashboardData]);
 
-  // Wait for hydration before checking auth or showing content
-  if (!_hasHydrated) {
+  // Show loading state during SSR or initial mount
+  if (!mounted) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-accent/20 border-t-accent rounded-full animate-spin mx-auto mb-4"></div>
-          <div className="text-accent text-xl">Loading authentication...</div>
-          <p className="text-text/60 mt-2">Please wait</p>
+          <div className="text-accent text-xl">Loading...</div>
         </div>
       </div>
     );
   }
 
-  // If no user/token, show loading (will redirect)
-  if (!user || !token) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-accent/20 border-t-accent rounded-full animate-spin mx-auto mb-4"></div>
-          <div className="text-accent text-xl">Redirecting to login...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
+  // Show loading state only during initial fetch, but allow rendering if stats exist
+  const paymentColors = ['#C59D5F', '#2ECC71', '#E74C3C', '#3498DB'];
+  
+  // Render dashboard even if stats is null (will show zeros)
+  // Only show loading spinner if actively loading AND no stats yet
+  if (loading && !stats) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
@@ -111,8 +87,6 @@ export default function AdminDashboard() {
       </div>
     );
   }
-
-  const paymentColors = ['#C59D5F', '#2ECC71', '#E74C3C', '#3498DB'];
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -130,8 +104,9 @@ export default function AdminDashboard() {
               <select
                 value={dateFilter}
                 onChange={(e) => {
-                  setDateFilter(e.target.value);
-                  if (e.target.value !== 'custom') {
+                  const newFilter = e.target.value;
+                  setDateFilter(newFilter);
+                  if (newFilter !== 'custom') {
                     setStartDate('');
                     setEndDate('');
                   }
@@ -173,7 +148,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-text/60 text-sm mb-1">Total Sales</p>
-              <p className="text-3xl font-bold text-accent">₵{stats?.stats?.totalSales?.toFixed(2) || '0.00'}</p>
+              <p className="text-3xl font-bold text-accent">₵{(stats?.stats?.totalSales ?? 0).toFixed(2)}</p>
               <p className="text-xs text-success mt-2">+12.5% from last month</p>
             </div>
             <div className="p-4 bg-accent/20 rounded-xl">
@@ -214,7 +189,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-text/60 text-sm mb-1">Avg Order Value</p>
-              <p className="text-3xl font-bold text-accent">₵{stats?.stats?.averageOrderValue?.toFixed(2) || '0.00'}</p>
+              <p className="text-3xl font-bold text-accent">₵{((stats?.stats?.averageOrderValue) ?? 0).toFixed(2)}</p>
               <p className="text-xs text-text/60 mt-2">Per order average</p>
             </div>
             <div className="p-4 bg-purple-500/20 rounded-xl">
