@@ -39,5 +39,8 @@
   "dependencies": {
     "@prisma/client": "^5.7.1",
     "prisma": "^5.7.1"
+  },
+  "prisma": {
+    "schema": "backend/prisma/schema.prisma"
   }
 }
