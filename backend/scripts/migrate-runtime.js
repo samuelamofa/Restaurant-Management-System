@@ -296,6 +296,9 @@ function deployMigrations() {
       console.error('   2. Resolve manually: npx prisma migrate resolve --rolled-back <migration_name>');
       console.error('   3. Deploy: npx prisma migrate deploy');
       console.error('');
+      console.error('⚠️  Exiting with code 1 to prevent Railway restart loop');
+      console.error('   Script will NOT retry - manual intervention required');
+      console.error('');
       process.exit(1);
     }
     
@@ -343,14 +346,20 @@ function deployMigrations() {
     console.error('   2. Check database connectivity');
     console.error('   3. Run manually: npx prisma migrate deploy');
     console.error('   4. Check migration status: npx prisma migrate status');
+    console.error('');
+    console.error('⚠️  Exiting with code 1 to prevent Railway restart loop');
+    console.error('   Script will NOT retry - please fix issues and redeploy');
+    console.error('');
     process.exit(1);
   }
 }
 
 // Main migration flow - runs ONCE per container start
 // This prevents infinite restart loops on Railway
+// IMPORTANT: This script exits on failure to prevent Railway restart loops
 console.log('🚀 Starting migration process...');
 console.log('   This will run ONCE per container start');
+console.log('   On failure, script exits to prevent restart loop');
 console.log('');
 
 // Step 1: Check migration status BEFORE deploying
@@ -385,7 +394,9 @@ if (statusCheck.hasFailedMigrations && statusCheck.failedMigrationNames.length >
     if (!allResolved) {
       console.error('');
       console.error('❌ Not all failed migrations could be resolved');
-      console.error('   Exiting to prevent restart loop');
+      console.error('   Exiting with code 1 to prevent Railway restart loop');
+      console.error('   Please resolve migrations manually before redeploying');
+      console.error('');
       process.exit(1);
     }
     
@@ -395,7 +406,11 @@ if (statusCheck.hasFailedMigrations && statusCheck.failedMigrationNames.length >
 }
 
 // Step 3: Deploy migrations
+// Note: deployMigrations() exits with code 1 on failure, so this only runs on success
 deployMigrations();
 
+// If we reach here, migrations deployed successfully
 console.log('✅ Migration process completed successfully');
+console.log('   All migrations are now applied');
+console.log('   Backend can start normally');
 console.log('');
