@@ -95,3 +95,4 @@ Write-Host "💡 App opens in a separate window." -ForegroundColor Gray
 Write-Host "   Close the window to stop the app." -ForegroundColor Gray
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
+

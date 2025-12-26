@@ -26,7 +26,7 @@ const nextConfig = {
     return config;
   },
   images: {
-    // Railway deployment: Allow images from any domain (API URL is dynamic)
+    // Allow images from any domain (API URL is dynamic)
     remotePatterns: [
       {
         protocol: 'https',
@@ -38,7 +38,7 @@ const nextConfig = {
       },
     ],
   },
-  // Railway deployment: Output standalone for better performance
+  // Output standalone for better performance
   output: 'standalone',
   // Rewrite logo.png requests to our API route
   async rewrites() {

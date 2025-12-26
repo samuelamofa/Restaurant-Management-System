@@ -2,7 +2,7 @@
 
 ## Overview
 
-This backend has been migrated from SQLite to PostgreSQL for Railway deployment. This document explains the migration process and how to handle it.
+This backend has been migrated from SQLite to PostgreSQL for production deployment. This document explains the migration process and how to handle it.
 
 ## Migration Status
 
@@ -20,11 +20,11 @@ The `migrate-and-start.js` script automatically handles the SQLite to PostgreSQL
 3. **Falls back to db push** - If provider mismatch detected, uses `prisma db push`
 4. **Creates schema** - Ensures database schema matches current schema.prisma
 
-## Railway Deployment
+## Production Deployment
 
 ### First Deployment (Empty Database)
 
-When deploying to Railway for the first time:
+When deploying to production for the first time:
 
 1. **Build Phase:**
    - `npm install` → runs `prisma generate` (no DB needed)
@@ -115,7 +115,7 @@ npx prisma migrate resolve --applied <migration_name>
 - **Old SQLite migrations:** Backed up in `prisma/migrations_sqlite_backup` (if baseline script was run)
 - **Schema unchanged:** All models and business logic remain the same
 - **Data migration:** If you have existing SQLite data, you'll need to export/import separately
-- **Railway compatible:** All changes are Railway deployment-ready
+- **Production compatible:** All changes are production deployment-ready
 
 ## Verification
 

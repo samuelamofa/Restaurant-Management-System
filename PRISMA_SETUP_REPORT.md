@@ -106,7 +106,7 @@ node scripts/resolve-migrations.js
 
 **Requirements:**
 - `DATABASE_URL` environment variable must be set
-- Database must be accessible (PostgreSQL on Railway)
+- Database must be accessible (PostgreSQL)
 
 **Resolution Process:**
 1. Checks `prisma migrate status` for failed migrations
@@ -145,8 +145,8 @@ EPERM: operation not permitted, rename '...query_engine-windows.dll.node.tmp...'
    - Move project to: `C:\Projects\DE FUSION FLAME SYSTEM`
    - This prevents OneDrive from locking files
 
-3. **Alternative:** Use Railway build process
-   - Railway will generate Prisma Client during build
+3. **Alternative:** Use Vercel build process
+   - Vercel will generate Prisma Client during build
    - No local generation needed for production
 
 **Current Status:**
@@ -183,7 +183,7 @@ npm run build --workspace=rms-backend
 
 **Workaround:**
 - For local development: Pause OneDrive and regenerate
-- For production: Railway build will handle Prisma Client generation
+- For production: Vercel build will handle Prisma Client generation
 - Build will succeed once file permissions are resolved
 
 ---
@@ -195,13 +195,12 @@ npm run build --workspace=rms-backend
 **Required Environment Variables:**
 - `DATABASE_URL` - PostgreSQL connection string
   - Format: `postgresql://user:password@host:port/database?schema=public`
-  - Railway: Available in Railway PostgreSQL service variables
+  - Vercel: Available in Vercel Environment Variables
 
 **To set DATABASE_URL:**
-1. **Railway:**
-   - Go to Service → Variables
-   - Add `DATABASE_URL` from PostgreSQL service
-   - Or use Railway's automatic `DATABASE_URL` variable
+1. **Vercel:**
+   - Go to Project Settings → Environment Variables
+   - Add `DATABASE_URL` from your PostgreSQL provider
 
 2. **Local Development:**
    - Create `backend/.env` file
@@ -227,10 +226,10 @@ npm run build --workspace=rms-backend
 
 1. **Prisma Client Generation** - Blocked by OneDrive file locking
    - **Action:** Pause OneDrive sync or move project outside OneDrive
-   - **Impact:** Local build fails, but Railway build will work
+   - **Impact:** Local build fails, but Vercel build will work
 
 2. **DATABASE_URL Not Set** - Required for migration checks
-   - **Action:** Set DATABASE_URL in Railway or local .env file
+   - **Action:** Set DATABASE_URL in Vercel or local .env file
    - **Impact:** Cannot check migration status or resolve migrations locally
 
 3. **Backend Build** - Fails due to Prisma Client generation
@@ -268,12 +267,12 @@ npm run build --workspace=rms-backend
    npm run build --workspace=rms-backend
    ```
 
-#### For Railway Production:
-1. **Set DATABASE_URL** in Railway service variables
-2. **Deploy** - Railway will:
+#### For Vercel Production:
+1. **Set DATABASE_URL** in Vercel Environment Variables
+2. **Deploy** - Vercel will:
    - Generate Prisma Client during build
-   - Run migrations via `migrate-and-start.js` script
-   - Start server automatically
+   - Run migrations via build command or manually
+   - API routes available as serverless functions
 
 ### 🔧 Migration Resolution (When DATABASE_URL is Set)
 
@@ -312,16 +311,16 @@ npx prisma generate
 
 ## 9. Production Deployment Notes
 
-**Railway Deployment:**
+**Vercel Deployment:**
 - ✅ Prisma is in `dependencies` (not `devDependencies`)
-- ✅ Migration script runs at startup (`migrate-and-start.js`)
 - ✅ Build script generates Prisma Client
-- ✅ Fail-safe migration handling prevents restart loops
+- ✅ API routes work as serverless functions
+- ✅ Migrations can be run via build command or manually
 
 **Migration Strategy:**
 - Uses `prisma migrate deploy` (production-safe)
 - Detects and resolves failed migrations automatically
-- Prevents Railway restart loops on migration failures
+- Handles migration failures gracefully
 
 **Safety:**
 - ✅ Does NOT delete database tables
@@ -341,9 +340,10 @@ The Prisma setup is complete and properly configured. The main blockers are:
 
 Once these are resolved, the system is ready for:
 - ✅ Local development
-- ✅ Railway production deployment
+- ✅ Vercel production deployment
 - ✅ Automatic migration resolution
 - ✅ Prisma Client generation
 
 **All migration resolution scripts are in place and ready to use when DATABASE_URL is available.**
+
 

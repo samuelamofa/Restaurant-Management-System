@@ -69,8 +69,7 @@ const connectDB = async (retryCount = 0) => {
     // Max retries exceeded
     console.error('❌ Database connection error after', MAX_RETRIES, 'attempts:', error.message);
     console.error('   Please check your DATABASE_URL in your environment:');
-    console.error('   - For Railway: Go to Service → Variables → Add DATABASE_URL');
-    console.error('   - For Railway PostgreSQL: Use the DATABASE_URL from your PostgreSQL service');
+    console.error('   - For Vercel: Set DATABASE_URL in Vercel Environment Variables');
     console.error('   - For local SQLite: file:./prisma/dev.db (change schema.prisma provider to "sqlite")');
     console.error('   - For local PostgreSQL: postgresql://user:password@localhost:5432/database?schema=public');
     // Don't exit - let the server start and handle errors gracefully

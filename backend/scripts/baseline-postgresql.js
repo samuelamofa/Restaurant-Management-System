@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Railway deployment: PostgreSQL Baseline Migration Script
+ * PostgreSQL Baseline Migration Script
  * 
  * This script creates a fresh PostgreSQL baseline migration.
  * Use this when switching from SQLite to PostgreSQL.
@@ -32,7 +32,7 @@ if (!process.env.DATABASE_URL) {
   console.error('❌ ERROR: DATABASE_URL environment variable is required!');
   console.error('');
   console.error('Please set DATABASE_URL in your environment:');
-  console.error('  - Railway: Go to Service → Variables → Add DATABASE_URL');
+  console.error('  - Vercel: Set DATABASE_URL in Vercel Environment Variables');
   console.error('  - Format: postgresql://user:password@host:port/database?schema=public');
   process.exit(1);
 }

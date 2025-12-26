@@ -18,7 +18,8 @@
     "seed": "node prisma/seed-production.js",
     "seed:production": "node prisma/seed-production.js",
     "seed:dev": "node prisma/seed-dev.js",
-    "seed:meals": "node prisma/seed-ghanaian-meals.js"
+    "seed:meals": "node prisma/seed-ghanaian-meals.js",
+    "vercel-build": "node scripts/generate-prisma.js && npx prisma migrate deploy"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",

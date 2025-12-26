@@ -121,3 +121,4 @@ Write-Host "💡 Server opens in a separate window." -ForegroundColor Gray
 Write-Host "   Close the window to stop the server." -ForegroundColor Gray
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 
+

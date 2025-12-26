@@ -4,13 +4,13 @@
  * ⚠️ DEPRECATED: This script is no longer used in production.
  * 
  * The functionality has been merged into `migrate-and-start.js` which is
- * the script that runs on Railway startup (via `npm start`).
+ * the script that runs on startup (via `npm start`).
  * 
  * This file is kept for reference but should not be used.
  * Use `migrate-and-start.js` instead, which includes all the same
  * P3009 recovery logic plus server startup.
  * 
- * Railway deployment: Runtime migration script with P3009 recovery
+ * Runtime migration script with P3009 recovery
  * 
  * This script runs database migrations at runtime (not during build),
  * allowing the build to complete without a database connection.
@@ -51,7 +51,7 @@ if (!process.env.DATABASE_URL) {
   console.error('❌ ERROR: DATABASE_URL environment variable is required for migrations!');
   console.error('');
   console.error('Please set DATABASE_URL in your deployment environment:');
-  console.error('  - Railway: Go to Service → Variables → Add DATABASE_URL');
+  console.error('  - Vercel: Set DATABASE_URL in Vercel Environment Variables');
   console.error('  - Format: postgresql://user:password@host:port/database?schema=public');
   process.exit(1);
 }
@@ -308,7 +308,7 @@ function deployMigrations() {
       console.error('   2. Resolve manually: npx prisma migrate resolve --rolled-back <migration_name>');
       console.error('   3. Deploy: npx prisma migrate deploy');
       console.error('');
-      console.error('⚠️  Exiting with code 1 to prevent Railway restart loop');
+      console.error('⚠️  Exiting with code 1 to prevent restart loop');
       console.error('   Script will NOT retry - manual intervention required');
       console.error('');
       process.exit(1);
@@ -359,7 +359,7 @@ function deployMigrations() {
     console.error('   3. Run manually: npx prisma migrate deploy');
     console.error('   4. Check migration status: npx prisma migrate status');
     console.error('');
-    console.error('⚠️  Exiting with code 1 to prevent Railway restart loop');
+    console.error('⚠️  Exiting with code 1 to prevent restart loop');
     console.error('   Script will NOT retry - please fix issues and redeploy');
     console.error('');
     process.exit(1);
@@ -367,8 +367,8 @@ function deployMigrations() {
 }
 
 // Main migration flow - runs ONCE per container start
-// This prevents infinite restart loops on Railway
-// IMPORTANT: This script exits on failure to prevent Railway restart loops
+// This prevents infinite restart loops
+// IMPORTANT: This script exits on failure to prevent restart loops
 console.log('🚀 Starting migration process...');
 console.log('   This will run ONCE per container start');
 console.log('   On failure, script exits to prevent restart loop');
@@ -422,7 +422,7 @@ if (statusCheck.hasFailedMigrations && statusCheck.failedMigrationNames.length >
     if (!allResolved) {
       console.error('');
       console.error('❌ Not all failed migrations could be resolved');
-      console.error('   Exiting with code 1 to prevent Railway restart loop');
+      console.error('   Exiting with code 1 to prevent restart loop');
       console.error('   Please resolve migrations manually before redeploying');
       console.error('');
       process.exit(1);

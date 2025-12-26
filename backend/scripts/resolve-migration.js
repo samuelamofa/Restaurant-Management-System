@@ -4,7 +4,7 @@
  * Resolve Failed Prisma Migration (P3009 Recovery)
  * 
  * This script resolves a failed migration by marking it as rolled back.
- * Run this in Railway's shell/terminal where DATABASE_URL is set.
+ * Run this in a terminal where DATABASE_URL is set.
  * 
  * Usage:
  *   node scripts/resolve-migration.js <migration_name>
@@ -83,7 +83,7 @@ try {
   console.error('  1. Verify the migration name is correct');
   console.error('  2. Check that DATABASE_URL is valid');
   console.error('  3. Ensure you have database access');
-  console.error('  4. Check Railway logs for more details');
+  console.error('  4. Check deployment logs for more details');
   console.error('');
   process.exit(1);
 }

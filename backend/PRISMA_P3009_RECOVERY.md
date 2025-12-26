@@ -48,9 +48,9 @@ After resolution:
 ### Step 4: Crash Safety
 - Maximum 2 recovery attempts to prevent infinite loops
 - Exits with error if recovery fails after max attempts
-- Prevents Railway restart loops
+- Prevents restart loops
 
-## Railway Deployment Flow
+## Production Deployment Flow
 
 ### Normal Flow (No Failed Migrations)
 ```
@@ -101,7 +101,7 @@ The migration `20251221091813_init` failed
 
 ### 3. Resolve Failed Migration
 
-**Option A: Using Prisma CLI directly (Railway Shell)**
+**Option A: Using Prisma CLI directly**
 ```bash
 # Mark as rolled back (recommended)
 npx prisma migrate resolve --rolled-back 20251221114916_add_kitchen_tracking
@@ -112,7 +112,7 @@ npx prisma migrate resolve --applied 20251221114916_add_kitchen_tracking
 
 **Option B: Using the helper script**
 ```bash
-# From backend directory in Railway shell
+# From backend directory
 node scripts/resolve-migration.js 20251221114916_add_kitchen_tracking
 ```
 
@@ -121,14 +121,13 @@ node scripts/resolve-migration.js 20251221114916_add_kitchen_tracking
 npx prisma migrate deploy
 ```
 
-### Railway-Specific Instructions
+### Vercel-Specific Instructions
 
-To resolve a failed migration in Railway:
+To resolve a failed migration on Vercel:
 
-1. **Open Railway Shell:**
-   - Go to your backend service in Railway
-   - Click on "Shell" or "Deploy Logs"
-   - Open a terminal/shell session
+1. **Use Vercel CLI or run locally:**
+   - Pull environment variables: `vercel env pull`
+   - Or set DATABASE_URL locally
 
 2. **Navigate to backend directory:**
    ```bash
@@ -170,7 +169,7 @@ To resolve a failed migration in Railway:
 ✅ **Crash-Safe**
 - Maximum retry limit prevents infinite loops
 - Exits cleanly on failure
-- Prevents Railway restart storms
+- Prevents restart storms
 
 ## Error Codes
 
@@ -210,10 +209,10 @@ To resolve a failed migration in Railway:
 3. Ensure database server is running
 4. Check network connectivity
 
-## Railway-Specific Notes
+## Vercel-Specific Notes
 
-- **Build Phase:** Migrations do NOT run during build
-- **Start Phase:** Migrations run automatically via `npm start`
+- **Build Phase:** Migrations can run during build via build command
+- **Runtime:** Migrations can be run manually or via build command
 - **Restart Safety:** Crash-safe design prevents restart loops
 - **Logs:** All recovery attempts logged for debugging
 
@@ -231,7 +230,7 @@ npx prisma migrate status
 
 ## Best Practices
 
-1. **Monitor Logs:** Watch Railway logs for P3009 errors
+1. **Monitor Logs:** Watch Vercel logs for P3009 errors
 2. **Regular Backups:** Backup database before major migrations
 3. **Test Locally:** Test migrations locally before deploying
 4. **Small Migrations:** Break large migrations into smaller ones

@@ -37,7 +37,7 @@ const nextConfig = {
   },
   // Transpile packages that might have issues
   transpilePackages: [],
-  // Railway deployment: Output standalone for better performance
+  // Output standalone for better performance
   output: 'standalone',
 };
 

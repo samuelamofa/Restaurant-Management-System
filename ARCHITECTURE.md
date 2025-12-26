@@ -291,7 +291,7 @@ Order ──> OrderItem ──> Payment
 - **Authentication**: JWT token in handshake
 - **Rooms**: Kitchen room for order updates
 - **Transports**: WebSocket with polling fallback
-- **Proxy Support**: Railway-compatible configuration
+- **Proxy Support**: Vercel-compatible configuration
 
 ### Event Flow
 ```
@@ -322,14 +322,14 @@ All connected clients update
   - KDS: 3002
   - Admin: 3003
 
-### Production (Railway)
-- **Monorepo**: Each app deployed as separate service
-- **Database**: PostgreSQL (Railway managed)
+### Production (Vercel)
+- **Monorepo**: Each app deployed as separate project or using routing
+- **Database**: PostgreSQL (external managed database)
 - **Build Process**:
   1. `npm install` - Install dependencies
-  2. `npm run build` - Generate Prisma Client
-  3. `npm start` - Run migrations + start server
-- **Environment Variables**: Configured per service
+  2. `npm run build` - Generate Prisma Client and build apps
+  3. Serverless functions handle API requests
+- **Environment Variables**: Configured in Vercel dashboard
 - **CORS**: Configured with production URLs
 
 ## 🔄 Data Flow Patterns
@@ -394,7 +394,7 @@ All connected clients update
 
 ### Production Deployment
 1. Push to GitHub
-2. Railway auto-deploys on push
+2. Vercel auto-deploys on push
 3. Build process runs automatically
 4. Migrations run at startup
 5. Services become available

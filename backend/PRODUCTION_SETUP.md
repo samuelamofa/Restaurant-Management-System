@@ -1,4 +1,4 @@
-# Production Setup - Railway Deployment
+# Production Setup - Vercel Deployment
 
 ## Package.json Changes
 
@@ -7,7 +7,7 @@
 **Change:** Moved `prisma` from `devDependencies` to `dependencies`
 
 **Reason:** 
-- Railway production builds run `npm install --production` which omits devDependencies
+- Production builds may run `npm install --production` which omits devDependencies
 - Runtime migrations require Prisma CLI to run `npx prisma migrate deploy`
 - Without Prisma CLI in dependencies, production builds fail with "sh: 1: prisma: not found"
 
@@ -22,7 +22,7 @@
 ```json
 "build": "prisma generate"
 ```
-- Runs during Railway build phase
+- Runs during Vercel build phase
 - Generates Prisma Client from schema
 - Required before server can start
 
@@ -41,7 +41,7 @@
 ```
 - Automatically generates Prisma Client after `npm install`
 - Ensures client is available even if build script is skipped
-- Railway-compatible: runs in both build and runtime phases
+- Production-compatible: runs in both build and runtime phases
 
 ### Dependencies vs DevDependencies
 
@@ -54,15 +54,16 @@
 - `nodemon` - Auto-restart server during development
 - Other dev tools (if added later)
 
-## Railway Deployment Flow
+## Vercel Deployment Flow
 
 1. **Build Phase:**
-   - Railway runs `npm install` (includes all dependencies)
+   - Vercel runs `npm install` (includes all dependencies)
    - Runs `npm run build` → `prisma generate`
    - Prisma Client is generated and ready
 
-2. **Start Phase:**
-   - Railway runs `npm start` → `node scripts/migrate-and-start.js`
+2. **Runtime:**
+   - Vercel uses serverless functions for API routes
+   - Migrations should be run via Vercel build command or manually
    - Script runs migration recovery and deploy:
      - Checks migration status
      - Resolves any failed migrations (P3009 recovery)
@@ -87,7 +88,7 @@
 To verify Prisma CLI is available in production:
 
 ```bash
-# In Railway logs or production container
+# In Vercel logs or production container
 npx prisma --version
 # Should output: prisma 5.7.1 (or current version)
 

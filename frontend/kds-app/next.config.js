@@ -38,7 +38,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Railway deployment: Output standalone for better performance
+  // Output standalone for better performance
   output: 'standalone',
 };
 

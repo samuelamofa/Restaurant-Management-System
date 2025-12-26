@@ -3,7 +3,7 @@
 /**
  * Prisma Client Generation Script
  * This script ensures Prisma Client is generated, handling different environments
- * Works around Railway deployment issues where npx might not be available
+ * Works around deployment issues where npx might not be available
  */
 
 const { execSync } = require('child_process');
@@ -96,7 +96,7 @@ if (!success) {
   console.error('   3. Verify npm install completed successfully');
   console.error('');
   // Don't exit with error in postinstall to allow build to continue
-  // Railway will fail at build step if this is critical
+  // Build will fail at build step if this is critical
   if (process.env.npm_lifecycle_event !== 'postinstall') {
     process.exit(1);
   } else {

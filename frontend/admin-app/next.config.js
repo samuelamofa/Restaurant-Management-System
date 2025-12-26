@@ -25,7 +25,7 @@ const nextConfig = {
     
     return config;
   },
-  // Railway deployment: Output standalone for better performance
+  // Output standalone for better performance
   output: 'standalone',
 };
 

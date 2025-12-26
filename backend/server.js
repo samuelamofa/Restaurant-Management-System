@@ -25,11 +25,13 @@ const fs = require('fs');
 // Check if running on Vercel (serverless)
 const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
 
-// Ensure uploads directory exists at runtime
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log('📁 Created uploads directory');
+// Ensure uploads directory exists at runtime (only for non-serverless)
+if (!isVercel) {
+  const uploadsDir = path.join(__dirname, 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log('📁 Created uploads directory');
+  }
 }
 
 // Validate required environment variables (don't exit on Vercel)
@@ -127,6 +129,8 @@ if (!isVercel) {
 }
 
 // Connect to database (async, but don't block server startup)
+// On Vercel, database connections are handled per-request in serverless functions
+// For local development, connect at startup
 if (!isVercel) {
   connectDB().catch((error) => {
     console.error('⚠️  Failed to connect to database. Server will start but API calls may fail.');
@@ -157,15 +161,18 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Serve uploaded files statically (after CORS)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
-  setHeaders: (res, path) => {
-    // Set CORS headers for images
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'GET');
-    res.set('Cache-Control', 'public, max-age=31536000');
-  }
-}));
+// Serve uploaded files statically (after CORS) - only for non-serverless
+// On Vercel, use Vercel Blob Storage or similar for file uploads
+if (!isVercel) {
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+    setHeaders: (res, path) => {
+      // Set CORS headers for images
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Access-Control-Allow-Methods', 'GET');
+      res.set('Cache-Control', 'public, max-age=31536000');
+    }
+  }));
+}
 
 // Rate limiting - production-safe with environment-based limits
 const limiter = rateLimit({
@@ -308,6 +315,6 @@ if (!isVercel) {
   });
 }
 
-// Export app as default for Vercel serverless functions
-// Vercel requires a default export that is a function
+// Export app for Vercel serverless functions
+// Vercel will use this as the handler for /api/* routes
 module.exports = app;
