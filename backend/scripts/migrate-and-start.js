@@ -409,89 +409,172 @@ function runMigrations() {
       console.log('');
     }
     
-    // Step 3: Deploy migrations
+    // Step 3: Deploy migrations (with P3009 error handling)
     console.log('📋 Running database migrations...');
     console.log('   Command: npx prisma migrate deploy');
     console.log('');
 
-    const migrateProcess = spawn('npx', ['prisma', 'migrate', 'deploy'], {
-      stdio: 'inherit', // Pipe output directly to console for Railway logs
-      env: process.env,
-      shell: true,
-    });
+    // Helper function to run migrate deploy and handle P3009 errors
+    const runMigrateDeploy = async (retryCount = 0) => {
+      return new Promise((resolveDeploy) => {
+        let stdout = '';
+        let stderr = '';
 
-    // Handle process execution errors (e.g., command not found)
-    migrateProcess.on('error', (error) => {
-      console.error('');
-      console.error('❌ Failed to execute migration command:', error.message || String(error));
-      console.error('   This may indicate Prisma CLI is not installed');
-      console.error('   Server will start anyway to prevent restart loop');
-      console.error('   Check that "prisma" is in dependencies (not devDependencies)');
-      console.log('');
-      resolve({
-        success: false,
-        exitCode: 1,
-      });
-    });
-
-    migrateProcess.on('close', async (code) => {
-      if (code === 0) {
-        // Success: migrations applied or already up to date
-        console.log('');
-        console.log('✅ Database migrations completed successfully');
-        console.log('   (Migrations were applied or already up to date)');
-        console.log('');
-        resolve({ success: true, exitCode: 0 });
-      } else {
-        // Migration failed with non-zero exit code
-        console.log('');
-        console.warn('⚠️  Migration deployment exited with code:', code);
-        console.warn('   This indicates a migration error occurred');
-        
-        // Check if it's a SQL syntax error (SQLite migration on PostgreSQL)
-        // In this case, we can try using db push as a fallback
-        console.warn('   Attempting fallback: using prisma db push to sync schema...');
-        console.log('');
-        
-        const dbPushProcess = spawn('npx', ['prisma', 'db', 'push', '--accept-data-loss', '--skip-generate'], {
-          stdio: 'inherit',
+        const migrateProcess = spawn('npx', ['prisma', 'migrate', 'deploy'], {
+          stdio: ['pipe', 'pipe', 'pipe'], // Capture output to check for P3009
           env: process.env,
           shell: true,
         });
-        
-        dbPushProcess.on('close', (pushCode) => {
-          if (pushCode === 0) {
+
+        // Capture stdout and stderr
+        migrateProcess.stdout.on('data', (data) => {
+          const output = data.toString();
+          stdout += output;
+          process.stdout.write(output); // Also output to console
+        });
+
+        migrateProcess.stderr.on('data', (data) => {
+          const output = data.toString();
+          stderr += output;
+          process.stderr.write(output); // Also output to console
+        });
+
+        // Handle process execution errors (e.g., command not found)
+        migrateProcess.on('error', (error) => {
+          console.error('');
+          console.error('❌ Failed to execute migration command:', error.message || String(error));
+          console.error('   This may indicate Prisma CLI is not installed');
+          console.error('   Server will start anyway to prevent restart loop');
+          console.error('   Check that "prisma" is in dependencies (not devDependencies)');
+          console.log('');
+          resolveDeploy({
+            success: false,
+            exitCode: 1,
+            shouldRetry: false,
+          });
+        });
+
+        migrateProcess.on('close', async (code) => {
+          const allOutput = stdout + stderr;
+          
+          if (code === 0) {
+            // Success: migrations applied or already up to date
             console.log('');
-            console.log('✅ Database schema synced using db push');
-            console.log('   (This is a fallback when migrations have SQL syntax issues)');
+            console.log('✅ Database migrations completed successfully');
+            console.log('   (Migrations were applied or already up to date)');
             console.log('');
-            resolve({ success: true, exitCode: 0 });
+            resolveDeploy({ success: true, exitCode: 0, shouldRetry: false });
           } else {
+            // Check for P3009 error (failed migrations)
+            if (allOutput.includes('P3009') || allOutput.includes('failed migrations') || allOutput.includes('failed migration')) {
+              console.log('');
+              console.warn('⚠️  P3009 Error detected: Failed migration found');
+              console.warn('   Attempting to resolve failed migration...');
+              console.log('');
+
+              // Extract failed migration name
+              const migrationPatterns = [
+                /The\s+`(\d+_\w+)`\s+migration/i,
+                /migration\s+`?(\d+_\w+)`?\s+failed/i,
+                /The\s+migration\s+`?(\d+_\w+)`?/i,
+                /`(\d+_\w+)`/g,
+              ];
+
+              let failedMigrationName = null;
+              for (const pattern of migrationPatterns) {
+                const match = allOutput.match(pattern);
+                if (match && match[1]) {
+                  failedMigrationName = match[1];
+                  break;
+                }
+              }
+
+              // Also check the known problematic migration
+              if (!failedMigrationName) {
+                failedMigrationName = '20251221114916_add_kitchen_tracking';
+              }
+
+              if (failedMigrationName && retryCount < 2) {
+                console.log(`   Resolving failed migration: ${failedMigrationName}`);
+                console.log('');
+                
+                // Resolve the failed migration
+                const resolved = await resolveFailedMigration(failedMigrationName);
+                
+                if (resolved) {
+                  console.log('');
+                  console.log('   ✅ Migration resolved, retrying migrate deploy...');
+                  console.log('');
+                  
+                  // Retry migrate deploy
+                  const retryResult = await runMigrateDeploy(retryCount + 1);
+                  resolveDeploy(retryResult);
+                  return;
+                }
+              }
+
+              // If we couldn't resolve or max retries reached, continue with fallback
+              console.warn('   Could not resolve failed migration, trying fallback...');
+              console.log('');
+            }
+
+            // Migration failed with non-zero exit code (not P3009 or resolution failed)
             console.log('');
-            console.warn('⚠️  db push also failed');
-            console.warn('   Server will start anyway to prevent restart loops');
-            console.warn('   Check logs above for error details');
-            console.warn('   If database is not ready, server will fail at runtime');
+            console.warn('⚠️  Migration deployment exited with code:', code);
+            console.warn('   This indicates a migration error occurred');
+            
+            // Check if it's a SQL syntax error (SQLite migration on PostgreSQL)
+            // In this case, we can try using db push as a fallback
+            console.warn('   Attempting fallback: using prisma db push to sync schema...');
             console.log('');
-            resolve({
-              success: false,
-              exitCode: code,
+            
+            const dbPushProcess = spawn('npx', ['prisma', 'db', 'push', '--accept-data-loss', '--skip-generate'], {
+              stdio: 'inherit',
+              env: process.env,
+              shell: true,
+            });
+            
+            dbPushProcess.on('close', (pushCode) => {
+              if (pushCode === 0) {
+                console.log('');
+                console.log('✅ Database schema synced using db push');
+                console.log('   (This is a fallback when migrations have SQL syntax issues)');
+                console.log('');
+                resolveDeploy({ success: true, exitCode: 0, shouldRetry: false });
+              } else {
+                console.log('');
+                console.warn('⚠️  db push also failed');
+                console.warn('   Server will start anyway to prevent restart loops');
+                console.warn('   Check logs above for error details');
+                console.warn('   If database is not ready, server will fail at runtime');
+                console.log('');
+                resolveDeploy({
+                  success: false,
+                  exitCode: code,
+                  shouldRetry: false,
+                });
+              }
+            });
+            
+            dbPushProcess.on('error', (error) => {
+              console.error('');
+              console.error('❌ Failed to execute db push:', error.message || String(error));
+              console.warn('   Server will start anyway to prevent restart loop');
+              console.log('');
+              resolveDeploy({
+                success: false,
+                exitCode: code,
+                shouldRetry: false,
+              });
             });
           }
         });
-        
-        dbPushProcess.on('error', (error) => {
-          console.error('');
-          console.error('❌ Failed to execute db push:', error.message || String(error));
-          console.warn('   Server will start anyway to prevent restart loop');
-          console.log('');
-          resolve({
-            success: false,
-            exitCode: code,
-          });
-        });
-      }
-    });
+      });
+    };
+
+    // Run migrate deploy with P3009 error handling
+    const deployResult = await runMigrateDeploy();
+    resolve(deployResult);
   });
 }
 
