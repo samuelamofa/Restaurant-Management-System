@@ -9,6 +9,7 @@
     "start": "node scripts/migrate-and-start.js",
     "start:server": "node server.js",
     "build": "node scripts/generate-prisma.js",
+    "postinstall": "node scripts/generate-prisma.js",
     "migrate": "npx prisma migrate dev",
     "migrate:deploy": "npx prisma migrate deploy",
     "migrate:runtime": "node scripts/migrate-runtime.js",

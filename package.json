@@ -15,6 +15,7 @@
     "dev:kds": "cd frontend/kds-app && npm run dev",
     "dev:admin": "cd frontend/admin-app && npm run dev",
     "install:all": "npm install",
+    "postinstall": "cd backend && npm run build || true",
     "build:customer": "cd frontend/customer-app && npm run build",
     "build:pos": "cd frontend/pos-app && npm run build",
     "build:kds": "cd frontend/kds-app && npm run build",
