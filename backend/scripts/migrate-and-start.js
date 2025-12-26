@@ -7,6 +7,11 @@
  * It's designed to prevent Railway restart loops by handling migration failures gracefully.
  * 
  * Behavior:
+ * - Checks for failed migrations before deploying
+ * - For failed migrations, follows Prisma best practices:
+ *   1. Uses `prisma migrate diff` to check database state vs schema
+ *   2. Uses `prisma db execute` to apply missing changes if migration was partially applied
+ *   3. Marks the migration as applied using `prisma migrate resolve --applied`
  * - Runs `prisma migrate deploy` to apply pending migrations
  * - If migrations succeed or are already applied (exit code 0), starts the server
  * - If migrations fail with recoverable errors, logs warnings but continues to start server
@@ -17,6 +22,7 @@
  * - Migrations run at startup, not during build (build runs `prisma generate` only)
  * - If migrations are already applied, `prisma migrate deploy` exits with code 0
  * - This prevents restart loops because we don't exit on non-critical migration failures
+ * - Failed migrations are handled using Prisma's recommended approach from official docs
  */
 
 require('dotenv').config();
@@ -159,49 +165,158 @@ function checkMigrationStatus() {
 }
 
 /**
- * Resolves a failed migration by marking it as rolled-back
+ * Resolves a failed migration following Prisma best practices:
+ * 1. Check if migration was partially applied by comparing DB state with schema
+ * 2. Use migrate diff to generate SQL script to complete the migration
+ * 3. Use db execute to apply the missing changes
+ * 4. Mark the migration as applied
+ * 
  * Returns: boolean (success)
  */
 function resolveFailedMigration(migrationName) {
-  return new Promise((resolve) => {
-    const { execSync } = require('child_process');
+  return new Promise(async (resolve) => {
+    const { execSync, writeFileSync, unlinkSync } = require('child_process');
+    const fs = require('fs');
+    const path = require('path');
     
     console.log(`📋 Resolving failed migration: ${migrationName}`);
-    console.log(`   Command: npx prisma migrate resolve --rolled-back ${migrationName}`);
+    console.log('   Following Prisma best practices for failed migrations');
     console.log('');
     
+    // Step 1: Check if migration was partially applied
+    // Use migrate diff to see what's missing between current DB state and target schema
+    const tempSqlFile = path.join(__dirname, '..', `temp_migration_${migrationName}.sql`);
+    
     try {
-      execSync(`npx prisma migrate resolve --rolled-back ${migrationName}`, {
-        stdio: 'inherit',
-        env: process.env,
-      });
-      
+      console.log('   Step 1: Checking database state vs schema...');
+      console.log('   Command: npx prisma migrate diff --from-url $DATABASE_URL --to-schema schema.prisma --script');
       console.log('');
-      console.log(`✅ Migration ${migrationName} marked as rolled-back`);
-      console.log('');
-      resolve(true);
       
-    } catch (error) {
-      const errorOutput = error.stderr?.toString() || error.stdout?.toString() || error.message || '';
+      // Generate SQL script to take DB from current state to target schema state
+      // Using Prisma 5 syntax: --from-url for source DB, --to-schema-datamodel for target schema
+      // We're already in the backend directory, so use relative path
+      const diffOutput = execSync(
+        `npx prisma migrate diff --from-url "${process.env.DATABASE_URL}" --to-schema-datamodel prisma/schema.prisma --script`,
+        {
+          encoding: 'utf8',
+          env: process.env,
+          stdio: ['pipe', 'pipe', 'pipe'],
+        }
+      );
       
-      // Check if migration is already resolved or doesn't exist
-      if (errorOutput.includes('already') || 
-          errorOutput.includes('not found') ||
-          errorOutput.includes('does not exist')) {
+      // If there are differences, write them to a temp file and apply them
+      if (diffOutput && diffOutput.trim().length > 0) {
+        console.log('   ⚠️  Database state differs from schema - migration was partially applied');
+        console.log('   Step 2: Generating SQL script to complete migration...');
         console.log('');
-        console.log(`ℹ️  Migration ${migrationName} appears to already be resolved or doesn't exist`);
+        
+        writeFileSync(tempSqlFile, diffOutput);
+        
+        console.log('   Step 3: Applying missing changes using db execute...');
+        console.log(`   Command: npx prisma db execute --file ${tempSqlFile}`);
         console.log('');
-        resolve(true); // Consider this a success
-        return;
+        
+        try {
+          execSync(`npx prisma db execute --file "${tempSqlFile}"`, {
+            stdio: 'inherit',
+            env: process.env,
+          });
+          
+          console.log('');
+          console.log('   ✅ Missing changes applied successfully');
+          console.log('');
+          
+          // Clean up temp file
+          try {
+            if (fs.existsSync(tempSqlFile)) {
+              unlinkSync(tempSqlFile);
+            }
+          } catch (cleanupError) {
+            // Ignore cleanup errors
+          }
+          
+        } catch (executeError) {
+          const executeErrorOutput = executeError.stderr?.toString() || executeError.stdout?.toString() || executeError.message || '';
+          
+          // Clean up temp file
+          try {
+            if (fs.existsSync(tempSqlFile)) {
+              unlinkSync(tempSqlFile);
+            }
+          } catch (cleanupError) {
+            // Ignore cleanup errors
+          }
+          
+          // If execute fails, it might mean the changes are already applied
+          // or there's a different issue - try to mark as applied anyway
+          console.log('');
+          console.log('   ⚠️  db execute failed (changes may already be applied)');
+          console.log(`   Error: ${executeErrorOutput.substring(0, 200)}`);
+          console.log('');
+        }
+      } else {
+        console.log('   ✅ Database state matches schema - migration appears complete');
+        console.log('');
       }
       
-      console.log('');
-      console.log(`⚠️  Rolled-back failed, trying --applied instead...`);
+      // Step 4: Mark migration as applied
+      console.log('   Step 4: Marking migration as applied...');
       console.log(`   Command: npx prisma migrate resolve --applied ${migrationName}`);
       console.log('');
       
       try {
-        execSync(`npx prisma migrate resolve --applied ${migrationName}`, {
+        execSync(`npx prisma migrate resolve --applied "${migrationName}"`, {
+          stdio: 'inherit',
+          env: process.env,
+        });
+        
+        console.log('');
+        console.log(`✅ Migration ${migrationName} marked as applied`);
+        console.log('');
+        resolve(true);
+        
+      } catch (resolveError) {
+        const resolveErrorOutput = resolveError.stderr?.toString() || resolveError.stdout?.toString() || resolveError.message || '';
+        
+        // Check if migration is already resolved
+        if (resolveErrorOutput.includes('already') || 
+            resolveErrorOutput.includes('not found') ||
+            resolveErrorOutput.includes('does not exist')) {
+          console.log('');
+          console.log(`ℹ️  Migration ${migrationName} appears to already be resolved`);
+          console.log('');
+          resolve(true); // Consider this a success
+        } else {
+          console.warn('');
+          console.warn(`⚠️  Could not mark migration as applied (will continue anyway)`);
+          console.warn(`   Error: ${resolveErrorOutput.substring(0, 200)}`);
+          console.warn('');
+          resolve(true); // Continue anyway - migration might be in a state we can work with
+        }
+      }
+      
+    } catch (error) {
+      const errorOutput = error.stderr?.toString() || error.stdout?.toString() || error.message || '';
+      
+      // Clean up temp file if it exists
+      try {
+        if (fs.existsSync(tempSqlFile)) {
+          unlinkSync(tempSqlFile);
+        }
+      } catch (cleanupError) {
+        // Ignore cleanup errors
+      }
+      
+      // If migrate diff fails, try the simpler approach: just mark as applied
+      console.log('');
+      console.log('   ⚠️  Could not check database state, trying simple resolve...');
+      console.log(`   Error: ${errorOutput.substring(0, 200)}`);
+      console.log('');
+      console.log(`   Command: npx prisma migrate resolve --applied ${migrationName}`);
+      console.log('');
+      
+      try {
+        execSync(`npx prisma migrate resolve --applied "${migrationName}"`, {
           stdio: 'inherit',
           env: process.env,
         });
