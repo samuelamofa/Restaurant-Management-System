@@ -93,7 +93,7 @@ Error: the URL must start with the protocol `postgresql://` or `postgres://`
 
 ## Automatic Recovery
 
-The `migrate-runtime.js` script will automatically detect and resolve this migration on the next Railway deployment. However, if you need immediate resolution, use the manual steps above.
+The `migrate-and-start.js` script will automatically detect and resolve this migration on the next Railway deployment. However, if you need immediate resolution, use the manual steps above.
 
 ## Prevention
 
@@ -117,7 +117,7 @@ npx prisma migrate status
 
 ## Related Files
 
-- `backend/scripts/migrate-runtime.js` - Automatic recovery script
+- `backend/scripts/migrate-and-start.js` - Automatic recovery script (runs on Railway startup)
 - `backend/scripts/resolve-migration.js` - Helper script for manual resolution
 - `backend/PRISMA_P3009_RECOVERY.md` - Full recovery documentation
 

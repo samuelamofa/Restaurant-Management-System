@@ -13,7 +13,7 @@ This backend has been migrated from SQLite to PostgreSQL for Railway deployment.
 
 ## Automatic Migration Handling
 
-The `migrate-runtime.js` script automatically handles the SQLite to PostgreSQL transition:
+The `migrate-and-start.js` script automatically handles the SQLite to PostgreSQL transition:
 
 1. **Checks migration_lock.toml** - Updates to postgresql if needed
 2. **Attempts migrate deploy** - Tries to apply existing migrations
@@ -70,7 +70,7 @@ npx prisma migrate resolve --applied postgresql_baseline
 2. **`prisma/migrations/migration_lock.toml`**
    - Provider: `postgresql` ✅ (updated from sqlite)
 
-3. **`scripts/migrate-runtime.js`**
+3. **`scripts/migrate-and-start.js`**
    - Detects provider mismatch
    - Falls back to `db push` for initial setup
    - Handles SQLite → PostgreSQL transition

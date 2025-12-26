@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 
 /**
+ * ⚠️ DEPRECATED: This script is no longer used in production.
+ * 
+ * The functionality has been merged into `migrate-and-start.js` which is
+ * the script that runs on Railway startup (via `npm start`).
+ * 
+ * This file is kept for reference but should not be used.
+ * Use `migrate-and-start.js` instead, which includes all the same
+ * P3009 recovery logic plus server startup.
+ * 
  * Railway deployment: Runtime migration script with P3009 recovery
  * 
  * This script runs database migrations at runtime (not during build),

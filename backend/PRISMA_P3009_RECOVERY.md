@@ -19,7 +19,7 @@ Common causes:
 
 ## Automatic Recovery Process
 
-The `migrate-runtime.js` script automatically handles P3009 errors:
+The `migrate-and-start.js` script automatically handles P3009 errors:
 
 ### Step 1: Pre-flight Check
 Before attempting migrations, the script:
@@ -55,7 +55,7 @@ After resolution:
 ### Normal Flow (No Failed Migrations)
 ```
 npm start
-  → migrate-runtime.js
+  → migrate-and-start.js
     → Check status (no failures)
     → prisma migrate deploy
     → ✅ Success
@@ -65,7 +65,7 @@ npm start
 ### Recovery Flow (P3009 Detected)
 ```
 npm start
-  → migrate-runtime.js
+  → migrate-and-start.js
     → Check status (P3009 detected)
     → prisma migrate resolve --rolled-back <name>
     → Retry: prisma migrate deploy
@@ -76,12 +76,12 @@ npm start
 ### Failure Flow (Recovery Failed)
 ```
 npm start
-  → migrate-runtime.js
+  → migrate-and-start.js
     → Check status (P3009 detected)
     → prisma migrate resolve --rolled-back <name>
     → Retry: prisma migrate deploy
     → Still fails after max attempts
-    → ❌ Exit with error (prevents restart loop)
+    → ⚠️  Continue anyway (prevents restart loop)
 ```
 
 ## Manual Recovery
@@ -239,7 +239,6 @@ npx prisma migrate status
 
 ## Related Files
 
-- `backend/scripts/migrate-runtime.js` - Main recovery script
-- `backend/scripts/migrate-and-start.js` - Startup orchestrator
+- `backend/scripts/migrate-and-start.js` - Main recovery script and startup orchestrator
 - `backend/PRISMA_POSTGRESQL_MIGRATION.md` - PostgreSQL migration guide
 

@@ -30,7 +30,7 @@
 ```json
 "start": "node scripts/migrate-and-start.js"
 ```
-- Runs migrations first via `migrate-runtime.js`
+- Runs migrations first via `migrate-and-start.js`
 - Then starts the Express server
 - Prevents server from starting with outdated schema
 - Exits on migration failure to prevent restart loops
@@ -63,7 +63,7 @@
 
 2. **Start Phase:**
    - Railway runs `npm start` → `node scripts/migrate-and-start.js`
-   - Script runs `migrate-runtime.js`:
+   - Script runs migration recovery and deploy:
      - Checks migration status
      - Resolves any failed migrations (P3009 recovery)
      - Runs `npx prisma migrate deploy`
@@ -75,7 +75,7 @@
 ### Crash-Safe Migration Handling
 - Script exits on migration failure (prevents infinite restart loops)
 - Clear error messages guide manual resolution
-- P3009 error auto-recovery built into `migrate-runtime.js`
+- P3009 error auto-recovery built into `migrate-and-start.js`
 
 ### No Data Loss
 - Uses only Prisma-supported commands
@@ -104,7 +104,7 @@ npx prisma migrate status
 
 ### Migration Failures
 **Cause:** P3009 error (failed migration in database)
-**Solution:** Script automatically resolves via `migrate-runtime.js`
+**Solution:** Script automatically resolves via `migrate-and-start.js`
 
 ### Build Failures
 **Cause:** Missing Prisma Client generation
@@ -112,7 +112,6 @@ npx prisma migrate status
 
 ## Related Files
 
-- `backend/scripts/migrate-runtime.js` - Runtime migration handler with P3009 recovery
-- `backend/scripts/migrate-and-start.js` - Startup orchestrator
+- `backend/scripts/migrate-and-start.js` - Migration handler with P3009 recovery and server startup
 - `backend/package.json` - Dependencies and scripts configuration
 
