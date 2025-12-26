@@ -3,8 +3,6 @@ const cors = require('cors');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { createServer } = require('http');
-const { Server } = require('socket.io');
 require('dotenv').config();
 
 const { connectDB } = require('./config/database');
@@ -21,9 +19,11 @@ const daySessionRoutes = require('./routes/daySession');
 const uploadRoutes = require('./routes/upload');
 const chatRoutes = require('./routes/chat');
 const { errorHandler } = require('./middleware/errorHandler');
-const { authenticateSocket } = require('./middleware/socketAuth');
 const path = require('path');
 const fs = require('fs');
+
+// Check if running on Vercel (serverless)
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
 
 // Ensure uploads directory exists at runtime
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -32,59 +32,108 @@ if (!fs.existsSync(uploadsDir)) {
   console.log('📁 Created uploads directory');
 }
 
-// Validate required environment variables
+// Validate required environment variables (don't exit on Vercel)
 if (!process.env.JWT_SECRET) {
   console.error('❌ JWT_SECRET is not set in environment variables');
-  console.error('   Please set JWT_SECRET in your environment:');
-  console.error('   - For Railway: Go to Service → Variables → Add JWT_SECRET');
-  console.error('   - For local: Set JWT_SECRET in backend/.env');
-  console.error('   Generate a secret: openssl rand -base64 32');
-  process.exit(1);
+  console.error('   Please set JWT_SECRET in your environment variables');
+  if (!isVercel) {
+    process.exit(1);
+  }
 }
 
 const app = express();
 
-// Railway deployment: Trust proxy for correct IP addresses and protocol
+// Trust proxy for correct IP addresses and protocol
 app.set('trust proxy', 1);
 
-const httpServer = createServer(app);
-
-// Railway deployment: CORS origins from environment variables
-// Filter out undefined values from CORS origins
+// CORS origins from environment variables
+// Use FRONTEND_PROD_URL and FRONTEND_DEV_URL as primary sources
 const corsOrigins = [
+  process.env.FRONTEND_PROD_URL,
+  process.env.FRONTEND_DEV_URL,
   process.env.FRONTEND_CUSTOMER_URL,
   process.env.FRONTEND_POS_URL,
   process.env.FRONTEND_KDS_URL,
   process.env.FRONTEND_ADMIN_URL,
 ].filter(Boolean); // Remove undefined/null values
 
-// Production safety: Require CORS origins in production
+// Production safety: Warn if no CORS origins in production
 if (process.env.NODE_ENV === 'production' && corsOrigins.length === 0) {
   console.warn('⚠️  WARNING: No CORS origins configured in production!');
-  console.warn('   Please set FRONTEND_*_URL environment variables.');
+  console.warn('   Please set FRONTEND_PROD_URL or FRONTEND_DEV_URL environment variables.');
   console.warn('   Allowing all origins as fallback (NOT RECOMMENDED FOR PRODUCTION)');
 }
 
-// Railway deployment: Socket.io configuration for proxy compatibility
-const io = new Server(httpServer, {
-  cors: {
-    origin: corsOrigins.length > 0 ? corsOrigins : (process.env.NODE_ENV === 'production' ? false : true), // Strict in production
-    credentials: true,
-    methods: ['GET', 'POST'],
-  },
-  // Railway proxy compatibility
-  transports: ['websocket', 'polling'],
-  allowEIO3: true,
-  // Trust Railway proxy
-  trustProxy: true,
-});
+// Socket.io setup (only for non-serverless environments)
+let io = null;
+if (!isVercel) {
+  try {
+    const { createServer } = require('http');
+    const { Server } = require('socket.io');
+    const { authenticateSocket } = require('./middleware/socketAuth');
+    
+    const httpServer = createServer(app);
+    io = new Server(httpServer, {
+      cors: {
+        origin: corsOrigins.length > 0 ? corsOrigins : (process.env.NODE_ENV === 'production' ? false : true),
+        credentials: true,
+        methods: ['GET', 'POST'],
+      },
+      transports: ['websocket', 'polling'],
+      allowEIO3: true,
+      trustProxy: true,
+    });
+
+    // Socket.io authentication middleware
+    io.use(authenticateSocket);
+
+    // Socket.io connection handling
+    io.on('connection', (socket) => {
+      if (socket.user) {
+        const roleRoom = `role:${socket.user.role}`;
+        socket.join(roleRoom);
+        socket.join(`user:${socket.user.id}`);
+      }
+
+      socket.on('join:kitchen', () => {
+        socket.join('kitchen');
+      });
+
+      socket.on('join:pos', () => {
+        socket.join('pos');
+      });
+
+      socket.on('join:user', (userId) => {
+        if (socket.user && socket.user.id === userId) {
+          socket.join(`user:${userId}`);
+        }
+      });
+    });
+
+    // Make io available to routes
+    app.set('io', io);
+  } catch (error) {
+    console.warn('⚠️  Socket.io initialization failed (this is normal on serverless):', error.message);
+  }
+} else {
+  // On Vercel, provide a mock io object to prevent crashes
+  io = {
+    emit: () => {},
+    to: () => ({ emit: () => {} }),
+    use: () => {},
+    on: () => {},
+  };
+  app.set('io', io);
+}
 
 // Connect to database (async, but don't block server startup)
-connectDB().catch((error) => {
-  console.error('⚠️  Failed to connect to database. Server will start but API calls may fail.');
-  console.error('   Error:', error.message);
-  console.error('   Please check your DATABASE_URL in backend/.env');
-});
+if (!isVercel) {
+  connectDB().catch((error) => {
+    console.error('⚠️  Failed to connect to database. Server will start but API calls may fail.');
+    console.error('   Error:', error.message);
+    console.error('   Please check your DATABASE_URL in your environment variables');
+  });
+}
 
 // Middleware
 // Configure helmet to allow images
@@ -184,114 +233,81 @@ app.use('/api/day-session', daySessionRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/chat', chatRoutes);
 
-// Socket.io authentication middleware
-io.use(authenticateSocket);
-
-// Socket.io connection handling
-io.on('connection', (socket) => {
-  // Join room based on user role
-  if (socket.user) {
-    const roleRoom = `role:${socket.user.role}`;
-    socket.join(roleRoom);
-    // Also join user-specific room for direct messaging
-    socket.join(`user:${socket.user.id}`);
-  }
-
-  // Kitchen staff joins kitchen room
-  socket.on('join:kitchen', () => {
-    socket.join('kitchen');
-  });
-
-  // POS staff joins pos room
-  socket.on('join:pos', () => {
-    socket.join('pos');
-  });
-
-  // User joins their own room (for chat messages)
-  socket.on('join:user', (userId) => {
-    if (socket.user && socket.user.id === userId) {
-      socket.join(`user:${userId}`);
-    }
+// Root route handler for Vercel health checks
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'De Fusion Flame Kitchen RMS API',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
-
-// Make io available to routes
-app.set('io', io);
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err, promise) => {
-  console.error('❌ Unhandled Promise Rejection:', err);
-  console.error('   Stack:', err.stack);
-  // Don't exit in production, but log the error
-  if (process.env.NODE_ENV === 'production') {
-    // In production, you might want to log to an error tracking service
-  }
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err);
-  console.error('   Stack:', err.stack);
-  // Exit the process for uncaught exceptions as the app is in an undefined state
-  process.exit(1);
-});
-
-// Railway deployment: Graceful shutdown handling
-const gracefulShutdown = async (signal) => {
-  console.log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
-  
-  // Stop accepting new connections
-  httpServer.close(() => {
-    console.log('✅ HTTP server closed');
+// Handle unhandled promise rejections (don't exit on Vercel)
+if (!isVercel) {
+  process.on('unhandledRejection', (err, promise) => {
+    console.error('❌ Unhandled Promise Rejection:', err);
+    console.error('   Stack:', err.stack);
   });
-  
-  // Close Socket.io connections
-  io.close(() => {
-    console.log('✅ Socket.io server closed');
+
+  process.on('uncaughtException', (err) => {
+    console.error('❌ Uncaught Exception:', err);
+    console.error('   Stack:', err.stack);
+    process.exit(1);
   });
+
+  // Graceful shutdown handling (only for non-serverless)
+  const gracefulShutdown = async (signal) => {
+    console.log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
+    
+    if (io && io.close) {
+      io.close(() => {
+        console.log('✅ Socket.io server closed');
+      });
+    }
+    
+    const { disconnectDB } = require('./config/database');
+    await disconnectDB();
+    
+    console.log('✅ Graceful shutdown complete');
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+  // Start server only if not on Vercel
+  const PORT = process.env.PORT || 5000;
+  const HOST = process.env.HOST || '0.0.0.0';
   
-  // Disconnect from database
-  const { disconnectDB } = require('./config/database');
-  await disconnectDB();
+  const { createServer } = require('http');
+  const httpServer = createServer(app);
   
-  console.log('✅ Graceful shutdown complete');
-  process.exit(0);
-};
+  httpServer.listen(PORT, HOST, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+    if (process.env.NODE_ENV === 'production') {
+      console.log(`🌐 Production mode - Server accessible on port ${PORT}`);
+    } else {
+      console.log(`🌐 Development mode - Server accessible at http://localhost:${PORT}`);
+    }
+  });
 
-// Handle shutdown signals (Railway sends SIGTERM)
-// Note: database.js also has handlers, but this ensures full server shutdown
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  httpServer.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`❌ Port ${PORT} is already in use.`);
+      console.error(`   Please stop the existing process or use a different port.`);
+      process.exit(1);
+    } else {
+      console.error('❌ Server error:', error);
+      process.exit(1);
+    }
+  });
+}
 
-// Railway deployment: PORT is automatically assigned by Railway
-const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST || '0.0.0.0';
-
-httpServer.listen(PORT, HOST, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-  if (process.env.NODE_ENV === 'production') {
-    console.log(`🌐 Production mode - Server accessible on port ${PORT}`);
-  } else {
-    console.log(`🌐 Development mode - Server accessible at http://localhost:${PORT}`);
-  }
-});
-
-// Handle server errors
-httpServer.on('error', (error) => {
-  if (error.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is already in use.`);
-    console.error(`   Please stop the existing process or use a different port.`);
-    console.error(`   Run: .\\kill-port-5000.ps1 (from project root)`);
-    console.error(`   Or: netstat -ano | findstr :${PORT} then taskkill /PID <pid> /F`);
-    process.exit(1);
-  } else {
-    console.error('❌ Server error:', error);
-    process.exit(1);
-  }
-});
-
-module.exports = { app, io };
+// Export app as default for Vercel serverless functions
+// Vercel requires a default export that is a function
+module.exports = app;

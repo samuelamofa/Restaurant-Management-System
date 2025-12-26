@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "buildCommand": "cd backend && npm run build",
+  "installCommand": "cd backend && npm install",
+  "builds": [
+    {
+      "src": "backend/server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "backend/server.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
+

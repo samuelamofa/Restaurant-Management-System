@@ -1,11 +1,14 @@
 const { PrismaClient } = require('@prisma/client');
 
-// Prevent SQLite in production
+// Prevent SQLite in production (warn but don't exit on serverless)
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
 if (process.env.NODE_ENV === 'production' && process.env.DATABASE_URL?.includes('sqlite')) {
   console.error('❌ ERROR: SQLite is not allowed in production!');
   console.error('   Please use PostgreSQL for production deployments.');
   console.error('   Update your DATABASE_URL to use PostgreSQL.');
-  process.exit(1);
+  if (!isVercel) {
+    process.exit(1);
+  }
 }
 
 const prisma = new PrismaClient({
