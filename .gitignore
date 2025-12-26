@@ -67,3 +67,39 @@ check-system.js
 test-backend.js
 backend/prisma/seed-demo.js
 
+# System directories (Windows)
+AppData/
+Application Data/
+Cookies/
+Local Settings/
+My Documents/
+NetHood/
+PrintHood/
+Recent/
+SendTo/
+Start Menu/
+Templates/
+Favorites/
+Links/
+Saved Games/
+Searches/
+Videos/
+Music/
+Downloads/
+Documents/
+Contacts/
+3D Objects/
+NTUSER.DAT*
+ntuser.dat*
+*.regtrans-ms
+*.blf
+*.ini
+
+# Android SDK (not needed for web app)
+.android/
+.expo/
+.skiko/
+.wdm/
+.yarnrc
+*.emulator_console_auth_token
+

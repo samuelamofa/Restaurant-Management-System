@@ -13,14 +13,32 @@ This is a monorepo with npm workspaces:
 
 ## Deployment Strategy
 
-### Option 1: Single Vercel Project (Recommended for API)
+**IMPORTANT:** For a monorepo with multiple apps, you need to create **separate Vercel projects** for each app. Vercel cannot auto-detect multiple Next.js apps in a single project.
 
-Deploy the backend API as a single Vercel project:
+### Step-by-Step: Creating Separate Projects
 
-1. **Root Directory:** Project root
-2. **Build Command:** `cd backend && npm run build`
-3. **Output Directory:** (not needed for serverless functions)
-4. **Install Command:** `npm install`
+You'll need to create **5 separate Vercel projects**:
+1. Backend API (serverless functions)
+2. Customer App (Next.js)
+3. POS App (Next.js)
+4. KDS App (Next.js)
+5. Admin App (Next.js)
+
+### Option 1: Backend API Project
+
+Deploy the backend API as a Vercel project:
+
+1. **Go to Vercel Dashboard** → **Add New Project**
+2. **Import Git Repository** → Select your repository
+3. **Configure Project:**
+   - **Project Name:** `rms-backend` (or your preferred name)
+   - **Root Directory:** Leave as root (`.`)
+   - **Framework Preset:** Other
+   - **Build Command:** `cd backend && npm run build`
+   - **Output Directory:** (leave empty - serverless functions don't need output)
+   - **Install Command:** `npm install`
+4. **Add Environment Variables** (see below)
+5. **Deploy**
 
 **Environment Variables:**
 ```env
@@ -43,49 +61,110 @@ ADMIN_PASSWORD=admin123
 ADMIN_PHONE=0551796725
 ```
 
-### Option 2: Separate Projects (Recommended for Frontend Apps)
+### Option 2: Customer App Project
 
-Deploy each frontend app as a separate Vercel project:
+1. **Go to Vercel Dashboard** → **Add New Project**
+2. **Import Git Repository** → Select the **same repository**
+3. **Configure Project:**
+   - **Project Name:** `rms-customer-app` (or your preferred name)
+   - **Root Directory:** `frontend/customer-app` ⚠️ **IMPORTANT: Set this!**
+   - **Framework Preset:** Next.js (should auto-detect)
+   - **Build Command:** (leave default - Next.js handles this)
+   - **Output Directory:** (leave default)
+   - **Install Command:** `npm install` (from root, workspaces will handle it)
+4. **Add Environment Variables:**
+   ```env
+   NEXT_PUBLIC_API_URL=https://your-backend-api.vercel.app/api
+   NEXT_PUBLIC_WS_URL=https://your-backend-api.vercel.app
+   ```
+5. **Deploy**
 
-#### Customer App
-- **Root Directory:** `frontend/customer-app`
-- **Build Command:** `npm run build`
-- **Output Directory:** `.next`
-- **Environment Variables:**
-  ```env
-  NEXT_PUBLIC_API_URL=https://your-api.vercel.app/api
-  NEXT_PUBLIC_WS_URL=https://your-api.vercel.app
-  ```
+### Option 3: POS App Project
 
-#### POS App
-- **Root Directory:** `frontend/pos-app`
-- **Build Command:** `npm run build`
-- **Output Directory:** `.next`
-- **Environment Variables:**
-  ```env
-  NEXT_PUBLIC_API_URL=https://your-api.vercel.app/api
-  NEXT_PUBLIC_WS_URL=https://your-api.vercel.app
-  ```
+1. **Go to Vercel Dashboard** → **Add New Project**
+2. **Import Git Repository** → Select the **same repository**
+3. **Configure Project:**
+   - **Project Name:** `rms-pos-app`
+   - **Root Directory:** `frontend/pos-app` ⚠️ **IMPORTANT: Set this!**
+   - **Framework Preset:** Next.js
+   - **Build Command:** (leave default)
+   - **Output Directory:** (leave default)
+   - **Install Command:** `npm install`
+4. **Add Environment Variables:**
+   ```env
+   NEXT_PUBLIC_API_URL=https://your-backend-api.vercel.app/api
+   NEXT_PUBLIC_WS_URL=https://your-backend-api.vercel.app
+   ```
+5. **Deploy**
 
-#### KDS App
-- **Root Directory:** `frontend/kds-app`
-- **Build Command:** `npm run build`
-- **Output Directory:** `.next`
-- **Environment Variables:**
-  ```env
-  NEXT_PUBLIC_API_URL=https://your-api.vercel.app/api
-  NEXT_PUBLIC_WS_URL=https://your-api.vercel.app
-  ```
+### Option 4: KDS App Project
 
-#### Admin App
-- **Root Directory:** `frontend/admin-app`
-- **Build Command:** `npm run build`
-- **Output Directory:** `.next`
-- **Environment Variables:**
-  ```env
-  NEXT_PUBLIC_API_URL=https://your-api.vercel.app/api
-  NEXT_PUBLIC_WS_URL=https://your-api.vercel.app
-  ```
+1. **Go to Vercel Dashboard** → **Add New Project**
+2. **Import Git Repository** → Select the **same repository**
+3. **Configure Project:**
+   - **Project Name:** `rms-kds-app`
+   - **Root Directory:** `frontend/kds-app` ⚠️ **IMPORTANT: Set this!**
+   - **Framework Preset:** Next.js
+   - **Build Command:** (leave default)
+   - **Output Directory:** (leave default)
+   - **Install Command:** `npm install`
+4. **Add Environment Variables:**
+   ```env
+   NEXT_PUBLIC_API_URL=https://your-backend-api.vercel.app/api
+   NEXT_PUBLIC_WS_URL=https://your-backend-api.vercel.app
+   ```
+5. **Deploy**
+
+### Option 5: Admin App Project
+
+1. **Go to Vercel Dashboard** → **Add New Project**
+2. **Import Git Repository** → Select the **same repository**
+3. **Configure Project:**
+   - **Project Name:** `rms-admin-app`
+   - **Root Directory:** `frontend/admin-app` ⚠️ **IMPORTANT: Set this!**
+   - **Framework Preset:** Next.js
+   - **Build Command:** (leave default)
+   - **Output Directory:** (leave default)
+   - **Install Command:** `npm install`
+4. **Add Environment Variables:**
+   ```env
+   NEXT_PUBLIC_API_URL=https://your-backend-api.vercel.app/api
+   NEXT_PUBLIC_WS_URL=https://your-backend-api.vercel.app
+   ```
+5. **Deploy**
+
+## ⚠️ Important: Root Directory Configuration
+
+**The key to making this work is setting the correct Root Directory for each project:**
+
+- **Backend API:** Root directory = `.` (root of repo)
+- **Customer App:** Root directory = `frontend/customer-app`
+- **POS App:** Root directory = `frontend/pos-app`
+- **KDS App:** Root directory = `frontend/kds-app`
+- **Admin App:** Root directory = `frontend/admin-app`
+
+When you import the repository, Vercel will show a "Root Directory" field. **You must set this correctly** for each project, otherwise Vercel won't find the app.
+
+### ⚠️ Install Command for Monorepo
+
+Since this is an npm workspace monorepo, you have two options for the Install Command:
+
+**Option A: Install from root (Recommended)**
+- **Install Command:** `npm install` (from repository root)
+- This installs all workspace dependencies
+- Works for all apps
+
+**Option B: Install from app directory**
+- **Install Command:** `cd frontend/customer-app && npm install`
+- Only installs dependencies for that specific app
+- May miss shared dependencies
+
+**For the backend API project:**
+- **Install Command:** `npm install` (from root, since backend is a workspace)
+
+**For frontend apps:**
+- **Install Command:** `npm install` (from root) OR `cd frontend/customer-app && npm install`
+- Both should work, but installing from root is safer for workspace dependencies
 
 ## Database Setup
 
