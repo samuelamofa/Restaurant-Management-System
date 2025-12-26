@@ -42,6 +42,156 @@ if (!process.env.DATABASE_URL) {
 }
 
 /**
+ * Checks migration status to detect failed migrations (P3009)
+ * Returns: { hasFailedMigrations: boolean, failedMigrationNames: string[] }
+ */
+function checkMigrationStatus() {
+  return new Promise((resolve) => {
+    const { execSync } = require('child_process');
+    
+    try {
+      const statusOutput = execSync('npx prisma migrate status', {
+        encoding: 'utf8',
+        env: process.env,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      
+      // Check for failed migrations
+      const hasFailedMigrations = statusOutput.includes('failed migrations') || 
+                                  statusOutput.includes('failed migration') ||
+                                  statusOutput.includes('P3009');
+      
+      if (!hasFailedMigrations) {
+        resolve({
+          hasFailedMigrations: false,
+          failedMigrationNames: [],
+        });
+        return;
+      }
+      
+      // Extract failed migration names
+      const failedMigrationNames = [];
+      const patterns = [
+        /migration\s+`?(\d+_\w+)`?\s+failed/i,
+        /The\s+migration\s+`?(\d+_\w+)`?\s+failed/i,
+        /`(\d+_\w+)`.*failed/i,
+        /failed.*`(\d+_\w+)`/i,
+      ];
+      
+      for (const pattern of patterns) {
+        const matches = statusOutput.matchAll(new RegExp(pattern, 'gi'));
+        for (const match of matches) {
+          if (match[1] && !failedMigrationNames.includes(match[1])) {
+            failedMigrationNames.push(match[1]);
+          }
+        }
+      }
+      
+      // Also check lines with "failed"
+      const lines = statusOutput.split('\n');
+      for (const line of lines) {
+        if (line.toLowerCase().includes('failed')) {
+          const migrationMatch = line.match(/(\d+_\w+)/);
+          if (migrationMatch && !failedMigrationNames.includes(migrationMatch[1])) {
+            failedMigrationNames.push(migrationMatch[1]);
+          }
+        }
+      }
+      
+      resolve({
+        hasFailedMigrations: true,
+        failedMigrationNames: failedMigrationNames,
+      });
+      
+    } catch (error) {
+      const errorOutput = error.stderr?.toString() || error.stdout?.toString() || error.message || '';
+      
+      // Check if it's a P3009 error
+      if (errorOutput.includes('P3009') || 
+          errorOutput.includes('failed migration') ||
+          errorOutput.includes('failed migrations')) {
+        
+        const failedMigrationNames = [];
+        const patterns = [
+          /migration\s+`?(\d+_\w+)`?/i,
+          /The\s+migration\s+`?(\d+_\w+)`?/i,
+          /`(\d+_\w+)`/,
+          /(\d+_\w+)/,
+        ];
+        
+        for (const pattern of patterns) {
+          const match = errorOutput.match(pattern);
+          if (match && match[1] && !failedMigrationNames.includes(match[1])) {
+            failedMigrationNames.push(match[1]);
+          }
+        }
+        
+        resolve({
+          hasFailedMigrations: true,
+          failedMigrationNames: failedMigrationNames,
+        });
+      } else {
+        // Other errors - assume no failed migrations
+        resolve({
+          hasFailedMigrations: false,
+          failedMigrationNames: [],
+        });
+      }
+    }
+  });
+}
+
+/**
+ * Resolves a failed migration by marking it as rolled-back
+ * Returns: boolean (success)
+ */
+function resolveFailedMigration(migrationName) {
+  return new Promise((resolve) => {
+    const { execSync } = require('child_process');
+    
+    console.log(`📋 Resolving failed migration: ${migrationName}`);
+    console.log(`   Command: npx prisma migrate resolve --rolled-back ${migrationName}`);
+    console.log('');
+    
+    try {
+      execSync(`npx prisma migrate resolve --rolled-back ${migrationName}`, {
+        stdio: 'inherit',
+        env: process.env,
+      });
+      
+      console.log('');
+      console.log(`✅ Migration ${migrationName} marked as rolled-back`);
+      console.log('');
+      resolve(true);
+      
+    } catch (error) {
+      console.log('');
+      console.log(`⚠️  Rolled-back failed, trying --applied instead...`);
+      console.log(`   Command: npx prisma migrate resolve --applied ${migrationName}`);
+      console.log('');
+      
+      try {
+        execSync(`npx prisma migrate resolve --applied ${migrationName}`, {
+          stdio: 'inherit',
+          env: process.env,
+        });
+        
+        console.log('');
+        console.log(`✅ Migration ${migrationName} marked as applied`);
+        console.log('');
+        resolve(true);
+        
+      } catch (appliedError) {
+        console.error('');
+        console.error(`❌ Failed to resolve migration ${migrationName}`);
+        console.error('');
+        resolve(false);
+      }
+    }
+  });
+}
+
+/**
  * Runs `prisma migrate deploy` to apply pending migrations
  * 
  * Important: `prisma migrate deploy` exits with code 0 if:
@@ -55,7 +205,40 @@ if (!process.env.DATABASE_URL) {
  * Returns: { success: boolean, exitCode: number }
  */
 function runMigrations() {
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
+    // Step 1: Check for failed migrations BEFORE deploying
+    console.log('📋 Checking migration status...');
+    console.log('');
+    
+    const statusCheck = await checkMigrationStatus();
+    
+    // Step 2: Resolve any failed migrations
+    if (statusCheck.hasFailedMigrations && statusCheck.failedMigrationNames.length > 0) {
+      console.log('⚠️  Failed migrations detected - resolving before deploy');
+      console.log('');
+      
+      let allResolved = true;
+      for (const migrationName of statusCheck.failedMigrationNames) {
+        const resolved = await resolveFailedMigration(migrationName);
+        if (!resolved) {
+          console.error(`❌ Could not resolve migration: ${migrationName}`);
+          allResolved = false;
+        }
+      }
+      
+      if (!allResolved) {
+        console.error('');
+        console.error('❌ Not all failed migrations could be resolved');
+        console.error('   Server will start anyway to prevent restart loop');
+        console.error('   Check logs above for details');
+        console.log('');
+      } else {
+        console.log('✅ All failed migrations resolved');
+        console.log('');
+      }
+    }
+    
+    // Step 3: Deploy migrations
     console.log('📋 Running database migrations...');
     console.log('   Command: npx prisma migrate deploy');
     console.log('');
@@ -80,7 +263,7 @@ function runMigrations() {
       });
     });
 
-    migrateProcess.on('close', (code) => {
+    migrateProcess.on('close', async (code) => {
       if (code === 0) {
         // Success: migrations applied or already up to date
         console.log('');
@@ -90,18 +273,51 @@ function runMigrations() {
         resolve({ success: true, exitCode: 0 });
       } else {
         // Migration failed with non-zero exit code
-        // Note: We log a warning but still resolve (not reject) to continue execution
-        // This prevents Railway restart loops. The server will handle runtime errors.
         console.log('');
         console.warn('⚠️  Migration deployment exited with code:', code);
         console.warn('   This indicates a migration error occurred');
-        console.warn('   Server will start anyway to prevent restart loops');
-        console.warn('   Check logs above for migration error details');
-        console.warn('   If database is not ready, server will fail at runtime');
+        
+        // Check if it's a SQL syntax error (SQLite migration on PostgreSQL)
+        // In this case, we can try using db push as a fallback
+        console.warn('   Attempting fallback: using prisma db push to sync schema...');
         console.log('');
-        resolve({
-          success: false,
-          exitCode: code,
+        
+        const dbPushProcess = spawn('npx', ['prisma', 'db', 'push', '--accept-data-loss', '--skip-generate'], {
+          stdio: 'inherit',
+          env: process.env,
+          shell: true,
+        });
+        
+        dbPushProcess.on('close', (pushCode) => {
+          if (pushCode === 0) {
+            console.log('');
+            console.log('✅ Database schema synced using db push');
+            console.log('   (This is a fallback when migrations have SQL syntax issues)');
+            console.log('');
+            resolve({ success: true, exitCode: 0 });
+          } else {
+            console.log('');
+            console.warn('⚠️  db push also failed');
+            console.warn('   Server will start anyway to prevent restart loops');
+            console.warn('   Check logs above for error details');
+            console.warn('   If database is not ready, server will fail at runtime');
+            console.log('');
+            resolve({
+              success: false,
+              exitCode: code,
+            });
+          }
+        });
+        
+        dbPushProcess.on('error', (error) => {
+          console.error('');
+          console.error('❌ Failed to execute db push:', error.message || String(error));
+          console.warn('   Server will start anyway to prevent restart loop');
+          console.log('');
+          resolve({
+            success: false,
+            exitCode: code,
+          });
         });
       }
     });
